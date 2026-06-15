@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transactions - Family Finance</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="app-layout">
+        <nav class="topnav">
+            <a href="/dashboard" class="topnav-brand">
+                <div class="brand-icon">$</div>
+                <span class="brand-text">Family Finance</span>
+            </a>
+            <div class="topnav-nav">
+                <a href="/dashboard"><span class="nav-icon">&#9632;</span> <span class="nav-label">Dashboard</span></a>
+                <a href="/transactions" class="active"><span class="nav-icon">&#9655;</span> <span class="nav-label">Transactions</span></a>
+                <a href="/kids"><span class="nav-icon">&#9679;</span> <span class="nav-label">Kids</span></a>
+                <a href="/transfer"><span class="nav-icon">&#8644;</span> <span class="nav-label">Transfer</span></a>
+            </div>
+            <div class="topnav-right">
+                <div class="topnav-user">
+                    <div class="topnav-avatar" id="user-avatar"></div>
+                    <span class="topnav-username" id="user-display"></span>
+                </div>
+                <button class="topnav-signout" onclick="logout()">Sign Out</button>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <!-- Lock Screen -->
+            <div id="lock-screen" style="display:flex;align-items:center;justify-content:center;min-height:70vh;">
+                <div class="card" style="max-width:400px;width:100%;text-align:center;padding:40px;">
+                    <div style="font-size:48px;margin-bottom:20px;color:var(--gray-400);">&#128274;</div>
+                    <h2 style="margin-bottom:6px;">Transactions Locked</h2>
+                    <p style="color:var(--gray-500);font-size:14px;margin-bottom:24px;">Enter your password to continue</p>
+                    <form id="unlock-form">
+                        <div class="form-group">
+                            <input type="password" id="unlock-password" placeholder="Enter password" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full">Unlock</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Content -->
+            <div id="transactions-content" style="display:none">
+                <div class="page-header">
+                    <h1>Transactions</h1>
+                    <p>Manage transactions and approve kid requests</p>
+                </div>
+
+                <!-- Pending Approvals -->
+                <div class="card" id="approvals-section">
+                    <div class="card-header">
+                        <span class="card-title">Pending Approvals <span class="badge" id="approval-count">0</span></span>
+                    </div>
+                    <div id="approvals-list">
+                        <div class="empty-state"><span class="icon">&#10003;</span><p>No pending approvals</p></div>
+                    </div>
+                </div>
+
+                <!-- Add Transaction -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Add Transaction</span>
+                    </div>
+                    <form id="transaction-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Description</label>
+                                <input type="text" id="description" placeholder="e.g., Grocery shopping" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Amount ($)</label>
+                                <input type="number" id="amount" step="0.01" min="0.01" placeholder="0.00" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Type</label>
+                                <select id="type">
+                                    <option value="expense">Expense</option>
+                                    <option value="income">Income</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Category</label>
+                                <select id="category">
+                                    <option value="general">General</option>
+                                    <option value="food">Food & Groceries</option>
+                                    <option value="utilities">Utilities</option>
+                                    <option value="entertainment">Entertainment</option>
+                                    <option value="transportation">Transportation</option>
+                                    <option value="savings">Savings</option>
+                                    <option value="kids">Kids</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Confirm with Password</label>
+                            <input type="password" id="tx-confirm-password" placeholder="Enter your password to confirm" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Add Transaction</button>
+                    </form>
+                </div>
+
+                <!-- History -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">History</span>
+                    </div>
+                    <div class="transaction-list" id="transactions-list">
+                        <div class="empty-state"><span class="icon">&#128221;</span><p>No transactions yet</p></div>
+                    </div>
+                </div>
+
+                <!-- Settings -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Transaction Password</span>
+                    </div>
+                    <div id="pw-status" style="font-size:13px;color:var(--gray-500);margin-bottom:14px;"></div>
+                    <form id="pw-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>New Password</label>
+                                <input type="password" id="new-tx-pw" placeholder="Set transactions password">
+                            </div>
+                            <div class="form-group">
+                                <label>Confirm</label>
+                                <input type="password" id="confirm-tx-pw" placeholder="Confirm password">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-secondary btn-small">Save Password</button>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const user = localStorage.getItem('currentUser');
+        if (!user) window.location.href = '/';
+
+        document.getElementById('user-display').textContent = user;
+        document.getElementById('user-avatar').textContent = user[0].toUpperCase();
+
+        let transactions = [];
+        let pendingApprovals = [];
+        let hasTxPassword = false;
+
+        if (sessionStorage.getItem('txUnlocked_' + user)) showTransactions();
+
+        document.getElementById('unlock-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const pw = document.getElementById('unlock-password').value;
+            try {
+                const res = await fetch('/api/verify-transaction-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pw })
+                });
+                const data = await res.json();
+                if (!res.ok || data.error) {
+                    alert(data.error || 'Incorrect password');
+                    return;
+                }
+                sessionStorage.setItem('txUnlocked_' + user, 'true');
+                showTransactions();
+            } catch (err) {
+                alert('Failed to verify password');
+            }
+        });
+
+        async function showTransactions() {
+            document.getElementById('lock-screen').style.display = 'none';
+            document.getElementById('transactions-content').style.display = 'block';
+            await loadData();
+        }
+
+        async function loadData() {
+            const res = await fetch('/api/user/' + user);
+            const data = await res.json();
+            transactions = data.transactions || [];
+            pendingApprovals = data.pendingApprovals || [];
+            hasTxPassword = data.hasTransactionPassword;
+            renderTransactions();
+            renderApprovals();
+            updatePasswordStatus();
+        }
+
+        function updatePasswordStatus() {
+            document.getElementById('pw-status').textContent = hasTxPassword
+                ? 'Password is set. You can change it below.'
+                : 'No password set. Transactions are not locked.';
+        }
+
+        document.getElementById('pw-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newPw = document.getElementById('new-tx-pw').value;
+            const confirmPw = document.getElementById('confirm-tx-pw').value;
+            if (!newPw) { alert('Enter a password'); return; }
+            if (newPw !== confirmPw) { alert('Passwords do not match'); return; }
+            await fetch('/api/set-transaction-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user, password: newPw })
+            });
+            hasTxPassword = true;
+            updatePasswordStatus();
+            document.getElementById('new-tx-pw').value = '';
+            document.getElementById('confirm-tx-pw').value = '';
+            alert('Password saved!');
+        });
+
+        function renderApprovals() {
+            const list = document.getElementById('approvals-list');
+            document.getElementById('approval-count').textContent = pendingApprovals.length;
+            if (pendingApprovals.length === 0) {
+                list.innerHTML = '<div class="empty-state"><span class="icon">&#10003;</span><p>No pending approvals</p></div>';
+                return;
+            }
+            list.innerHTML = pendingApprovals.map(a => {
+                const badgeClass = a.type === 'add' ? 'add' : a.type === 'kid-transfer' ? 'kid-transfer' : 'spend';
+                const label = a.type === 'add' ? 'Add Money' : a.type === 'kid-transfer' ? 'Kid Transfer' : 'Spend';
+                return `
+                    <div class="approval-item">
+                        <div class="approval-header">
+                            <strong>${a.kidName || a.fromKidName + ' &#8594; ' + a.toKidName}</strong>
+                            <span class="approval-badge ${badgeClass}">${label}</span>
+                        </div>
+                        <div class="approval-details">${a.description} &mdash; $${a.amount.toFixed(2)}</div>
+                        <div class="approval-actions">
+                            <button class="btn btn-success btn-small" onclick="approve(${a.id})">Approve</button>
+                            <button class="btn btn-danger btn-small" onclick="deny(${a.id})">Deny</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function approve(id) {
+            await fetch('/api/user/' + user + '/approve/' + id, { method: 'POST' });
+            loadData();
+        }
+
+        async function deny(id) {
+            await fetch('/api/user/' + user + '/deny/' + id, { method: 'POST' });
+            loadData();
+        }
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+        }
+
+        function renderTransactions() {
+            const list = document.getElementById('transactions-list');
+            if (transactions.length === 0) {
+                list.innerHTML = '<div class="empty-state"><span class="icon">&#128221;</span><p>No transactions yet</p></div>';
+                return;
+            }
+            list.innerHTML = transactions
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .map((t, i) => `
+                    <div class="transaction-item">
+                        <div class="transaction-left">
+                            <div class="transaction-icon">${t.type === 'income' ? '&#8593;' : '&#8595;'}</div>
+                            <div class="transaction-info">
+                                <h4>${t.description}</h4>
+                                <span>${t.category} &bull; ${new Date(t.date).toLocaleDateString()}</span>
+                            </div>
+                        </div>
+                        <div class="transaction-right">
+                            <span class="transaction-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}</span>
+                            <button class="btn-ghost" onclick="deleteTransaction(${i})">&#10005;</button>
+                        </div>
+                    </div>
+                `).join('');
+        }
+
+        document.getElementById('transaction-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const pw = document.getElementById('tx-confirm-password').value;
+
+            try {
+                const verify = await fetch('/api/verify-transaction-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pw })
+                });
+                const vData = await verify.json();
+                if (!verify.ok || vData.error) {
+                    alert(vData.error || 'Incorrect password');
+                    return;
+                }
+            } catch (err) {
+                alert('Failed to verify password');
+                return;
+            }
+
+            transactions.push({
+                id: Date.now(),
+                description: document.getElementById('description').value,
+                amount: parseFloat(document.getElementById('amount').value),
+                type: document.getElementById('type').value,
+                category: document.getElementById('category').value,
+                date: new Date().toISOString()
+            });
+
+            await fetch('/api/user/' + user + '/transactions', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transactions })
+            });
+
+            renderTransactions();
+            e.target.reset();
+        });
+
+        async function deleteTransaction(index) {
+            const pw = prompt('Enter your transaction password to confirm deletion:');
+            if (pw === null) return;
+            try {
+                const verify = await fetch('/api/verify-transaction-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pw })
+                });
+                const vData = await verify.json();
+                if (!verify.ok || vData.error) {
+                    alert(vData.error || 'Incorrect password');
+                    return;
+                }
+            } catch (err) {
+                alert('Failed to verify password');
+                return;
+            }
+            transactions.splice(index, 1);
+            await fetch('/api/user/' + user + '/transactions', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transactions })
+            });
+            renderTransactions();
+        }
+
+        function logout() {
+            localStorage.removeItem('currentUser');
+            sessionStorage.removeItem('txUnlocked_' + user);
+            window.location.href = '/';
+        }
+    </script>
+</body>
+</html>

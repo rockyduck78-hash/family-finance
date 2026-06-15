@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kids - Family Finance</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-layout">
+        <nav class="topnav">
+            <a href="/dashboard" class="topnav-brand">
+                <div class="brand-icon">$</div>
+                <span class="brand-text">Family Finance</span>
+            </a>
+            <div class="topnav-nav">
+                <a href="/dashboard"><span class="nav-icon">&#9632;</span> <span class="nav-label">Dashboard</span></a>
+                <a href="/transactions"><span class="nav-icon">&#9655;</span> <span class="nav-label">Transactions</span></a>
+                <a href="/kids" class="active"><span class="nav-icon">&#9679;</span> <span class="nav-label">Kids</span></a>
+                <a href="/transfer"><span class="nav-icon">&#8644;</span> <span class="nav-label">Transfer</span></a>
+            </div>
+            <div class="topnav-right">
+                <div class="topnav-user">
+                    <div class="topnav-avatar" id="user-avatar"></div>
+                    <span class="topnav-username" id="user-display"></span>
+                </div>
+                <button class="topnav-signout" onclick="logout()">Sign Out</button>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Kids</h1>
+                <p>Manage allowances, spending, and transfers</p>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Add Profile</span>
+                </div>
+                <div class="add-kid-form">
+                    <input type="text" id="kid-name" placeholder="Kid's name">
+                    <input type="password" id="kid-password" placeholder="Password (optional)">
+                    <button class="btn btn-primary" onclick="addKid()">Add</button>
+                </div>
+            </div>
+
+            <div class="kids-grid" id="kids-grid">
+                <div class="empty-state" style="grid-column:1/-1"><span class="icon">&#128106;</span><p>No kids yet</p></div>
+            </div>
+
+            <div class="card" id="scheduled-section" style="display:none">
+                <div class="card-header">
+                    <span class="card-title">Scheduled Payments</span>
+                    <button class="btn btn-primary btn-small" onclick="showAddScheduled()">+ Add</button>
+                </div>
+                <div id="scheduled-list">
+                    <div class="empty-state"><span class="icon">&#128197;</span><p>No scheduled payments</p></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Password Modal -->
+    <div class="modal-overlay" id="password-modal">
+        <div class="modal">
+            <h3 id="modal-title">Enter Password</h3>
+            <div class="form-group">
+                <input type="password" id="modal-password" placeholder="Password">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitPassword()">Unlock</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transfer Modal -->
+    <div class="modal-overlay" id="transfer-modal">
+        <div class="modal">
+            <h3>Transfer Between Kids</h3>
+            <div class="form-group">
+                <label>From</label>
+                <select id="transfer-from"></select>
+            </div>
+            <div class="form-group">
+                <label>To</label>
+                <select id="transfer-to"></select>
+            </div>
+            <div class="form-group">
+                <label>Amount ($)</label>
+                <input type="number" id="transfer-amount" step="0.01" min="0.01" placeholder="0.00">
+            </div>
+            <div class="form-group">
+                <label>Note (optional)</label>
+                <input type="text" id="transfer-note" placeholder="e.g., For toys">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeTransferModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitTransfer()">Send Request</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scheduled Payment Modal -->
+    <div class="modal-overlay" id="scheduled-modal">
+        <div class="modal">
+            <h3>Add Scheduled Payment</h3>
+            <div class="form-group">
+                <label>Kid</label>
+                <select id="scheduled-kid"></select>
+            </div>
+            <div class="form-group">
+                <label>Amount ($)</label>
+                <input type="number" id="scheduled-amount" step="0.01" min="0.01" placeholder="0.00">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" id="scheduled-desc" placeholder="e.g., Weekly allowance">
+            </div>
+            <div class="form-group">
+                <label>Frequency</label>
+                <select id="scheduled-freq">
+                    <option value="daily">Daily</option>
+                    <option value="weekly" selected>Weekly</option>
+                    <option value="biweekly">Bi-weekly</option>
+                    <option value="monthly">Monthly</option>
+                </select>
+            </div>
+            <div class="form-group" id="dow-group">
+                <label>Day of Week</label>
+                <select id="scheduled-dow">
+                    <option value="0">Sunday</option>
+                    <option value="1">Monday</option>
+                    <option value="2">Tuesday</option>
+                    <option value="3">Wednesday</option>
+                    <option value="4">Thursday</option>
+                    <option value="5">Friday</option>
+                    <option value="6">Saturday</option>
+                </select>
+            </div>
+            <div class="form-group" id="dom-group" style="display:none">
+                <label>Day of Month</label>
+                <input type="number" id="scheduled-dom" min="1" max="28" value="1">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeScheduledModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitScheduled()">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const user = localStorage.getItem('currentUser');
+        if (!user) window.location.href = '/';
+        document.getElementById('user-display').textContent = user;
+        document.getElementById('user-avatar').textContent = user[0].toUpperCase();
+
+        let kids = [], kidCharts = {}, unlockedKids = new Set(), scheduledPayments = [];
+        let currentKidIndex = null, pendingAction = null;
+
+        async function loadData() {
+            const res = await fetch('/api/user/' + user);
+            const data = await res.json();
+            kids = data.kids || [];
+            renderKids();
+            setTimeout(renderKidCharts, 100);
+            await loadScheduled();
+        }
+
+        async function saveKids() {
+            await fetch('/api/user/' + user + '/kids', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ kids })
+            });
+        }
+
+        async function loadScheduled() {
+            const res = await fetch('/api/user/' + user + '/scheduled-payments');
+            scheduledPayments = await res.json();
+            renderScheduled();
+        }
+
+        function fmt(n) {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+        }
+
+        function renderKidCharts() {
+            kids.forEach(kid => {
+                if (kid.password && !unlockedKids.has(kid.id)) return;
+                const c = document.getElementById('kc-' + kid.id);
+                if (!c) return;
+                if (kidCharts[kid.id]) kidCharts[kid.id].destroy();
+                const exp = (kid.transactions || []).filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+                kidCharts[kid.id] = new Chart(c, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Saved', 'Spent'],
+                        datasets: [{
+                            data: [kid.balance, exp],
+                            backgroundColor: ['#16a34a', '#d1d5db'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '65%',
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { color: '#6b7280', padding: 12, font: { size: 11 } }
+                            }
+                        }
+                    }
+                });
+            });
+        }
+
+        function renderKids() {
+            const g = document.getElementById('kids-grid');
+            if (!kids.length) {
+                g.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><span class="icon">&#128106;</span><p>No kids yet</p></div>';
+                return;
+            }
+            g.innerHTML = kids.map((k, i) => {
+                if (k.password && !unlockedKids.has(k.id)) {
+                    return `
+                        <div class="kid-card">
+                            <div class="kid-header">
+                                <div class="kid-name"><div class="kid-avatar">${k.name[0]}</div>${k.name}</div>
+                                <button class="btn-ghost" onclick="deleteKid(${i})">&#10005;</button>
+                            </div>
+                            <div class="kid-locked">
+                                <div class="lock-icon">&#128274;</div>
+                                <h4>Locked</h4>
+                                <p>Enter password to view</p>
+                                <button class="btn btn-primary btn-small" onclick="unlockKid(${i})">Unlock</button>
+                            </div>
+                        </div>`;
+                }
+                const txs = k.transactions || [];
+                const otherKids = kids.filter((_, idx) => idx !== i);
+                return `
+                    <div class="kid-card">
+                        <div class="kid-header">
+                            <div class="kid-name"><div class="kid-avatar">${k.name[0]}</div>${k.name}</div>
+                            <button class="btn-ghost" onclick="deleteKid(${i})">&#10005;</button>
+                        </div>
+                        <div class="kid-balance-box">
+                            <div class="kid-balance-label">Balance</div>
+                            <div class="kid-balance-amount">${fmt(k.balance)}</div>
+                        </div>
+                        <div class="kid-chart"><canvas id="kc-${k.id}"></canvas></div>
+                        <div class="kid-actions">
+                            <button class="btn btn-success btn-small" onclick="requestMoney(${i})">+ Request</button>
+                            <button class="btn btn-danger btn-small" onclick="requestSpend(${i})">- Spend</button>
+                            ${otherKids.length > 0 ? `<button class="btn btn-primary btn-small" onclick="showTransfer(${i})">&#8596; Transfer</button>` : ''}
+                            ${k.password ? `<button class="btn btn-secondary btn-small" onclick="lockKid(${i})">&#128274;</button>` : ''}
+                        </div>
+                        <div class="kid-tx-list">
+                            ${txs.length ? txs.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 8).map(t =>
+                                `<div class="kid-tx-item"><span>${t.description}</span><span class="transaction-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${fmt(t.amount)}</span></div>`
+                            ).join('') : '<div class="empty-state"><p>No transactions</p></div>'}
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        function renderScheduled() {
+            const section = document.getElementById('scheduled-section');
+            const list = document.getElementById('scheduled-list');
+            if (!scheduledPayments.length) { section.style.display = 'none'; return; }
+            section.style.display = 'block';
+            list.innerHTML = scheduledPayments.map(sp => `
+                <div class="transaction-item">
+                    <div class="transaction-left">
+                        <div class="transaction-icon">&#128197;</div>
+                        <div class="transaction-info">
+                            <h4>${sp.kidName} &mdash; ${sp.description}</h4>
+                            <span>${sp.frequency} &bull; ${fmt(sp.amount)} &bull; ${sp.active ? 'Active' : 'Paused'}</span>
+                        </div>
+                    </div>
+                    <div class="transaction-right">
+                        <button class="btn btn-secondary btn-small" onclick="toggleScheduled(${sp.id}, ${!sp.active})">${sp.active ? 'Pause' : 'Resume'}</button>
+                        <button class="btn-ghost" onclick="deleteScheduled(${sp.id})">&#10005;</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addKid() {
+            const n = document.getElementById('kid-name').value.trim();
+            const p = document.getElementById('kid-password').value.trim();
+            if (!n) return alert('Enter a name');
+            kids.push({ id: Date.now(), name: n, password: p || null, balance: 0, transactions: [] });
+            saveKids(); renderKids(); setTimeout(renderKidCharts, 100);
+            document.getElementById('kid-name').value = '';
+            document.getElementById('kid-password').value = '';
+        }
+
+        function unlockKid(i) {
+            currentKidIndex = i;
+            pendingAction = 'unlock';
+            document.getElementById('modal-title').textContent = 'Unlock ' + kids[i].name;
+            document.getElementById('password-modal').classList.add('active');
+            document.getElementById('modal-password').value = '';
+        }
+
+        function lockKid(i) {
+            unlockedKids.delete(kids[i].id);
+            renderKids();
+        }
+
+        function deleteKid(i) {
+            if (kids[i].password && !unlockedKids.has(kids[i].id)) {
+                currentKidIndex = i;
+                pendingAction = 'delete';
+                document.getElementById('modal-title').textContent = 'Delete ' + kids[i].name;
+                document.getElementById('password-modal').classList.add('active');
+            } else if (confirm('Delete ' + kids[i].name + '?')) {
+                delete kidCharts[kids[i].id];
+                unlockedKids.delete(kids[i].id);
+                kids.splice(i, 1);
+                saveKids();
+                renderKids();
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('password-modal').classList.remove('active');
+        }
+
+        function submitPassword() {
+            const pw = document.getElementById('modal-password').value;
+            if (pw === kids[currentKidIndex].password) {
+                if (pendingAction === 'unlock') {
+                    unlockedKids.add(kids[currentKidIndex].id);
+                    closeModal();
+                    renderKids();
+                    setTimeout(renderKidCharts, 100);
+                } else {
+                    closeModal();
+                    if (confirm('Delete?')) {
+                        delete kidCharts[kids[currentKidIndex].id];
+                        unlockedKids.delete(kids[currentKidIndex].id);
+                        kids.splice(currentKidIndex, 1);
+                        saveKids();
+                        renderKids();
+                    }
+                }
+            } else {
+                alert('Wrong password');
+            }
+        }
+
+        async function requestMoney(i) {
+            const d = prompt('Reason:');
+            if (!d) return;
+            const a = parseFloat(prompt('Amount:'));
+            if (isNaN(a) || a <= 0) return alert('Invalid');
+            const r = await fetch('/api/user/' + user + '/kids/' + kids[i].id + '/request-money', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount: a, description: d })
+            });
+            const data = await r.json();
+            if (data.error) return alert(data.error);
+            alert('Request sent! Approve in Transactions tab.');
+        }
+
+        async function requestSpend(i) {
+            const d = prompt('What to buy:');
+            if (!d) return;
+            const a = parseFloat(prompt('Amount:'));
+            if (isNaN(a) || a <= 0) return alert('Invalid');
+            if (a > kids[i].balance) return alert('Insufficient balance');
+            const r = await fetch('/api/user/' + user + '/kids/' + kids[i].id + '/request-spend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount: a, description: d })
+            });
+            const data = await r.json();
+            if (data.error) return alert(data.error);
+            alert('Request sent! Approve in Transactions tab.');
+        }
+
+        function showTransfer(fromIdx) {
+            const fromSelect = document.getElementById('transfer-from');
+            const toSelect = document.getElementById('transfer-to');
+            fromSelect.innerHTML = kids.map((k, i) =>
+                '<option value="' + i + '"' + (i === fromIdx ? ' selected' : '') + '>' + k.name + ' (' + fmt(k.balance) + ')</option>'
+            ).join('');
+            toSelect.innerHTML = kids.map((k, i) =>
+                '<option value="' + i + '"' + (i === fromIdx ? ' disabled' : '') + '>' + k.name + ' (' + fmt(k.balance) + ')</option>'
+            ).join('');
+            document.getElementById('transfer-amount').value = '';
+            document.getElementById('transfer-note').value = '';
+            document.getElementById('transfer-modal').classList.add('active');
+        }
+
+        function closeTransferModal() {
+            document.getElementById('transfer-modal').classList.remove('active');
+        }
+
+        async function submitTransfer() {
+            const fromIdx = parseInt(document.getElementById('transfer-from').value);
+            const toIdx = parseInt(document.getElementById('transfer-to').value);
+            const amount = parseFloat(document.getElementById('transfer-amount').value);
+            const note = document.getElementById('transfer-note').value.trim();
+            if (fromIdx === toIdx) return alert('Select different kids');
+            if (isNaN(amount) || amount <= 0) return alert('Invalid amount');
+            if (amount > kids[fromIdx].balance) return alert('Insufficient balance');
+            const r = await fetch('/api/user/' + user + '/kids/' + kids[fromIdx].id + '/transfer-to-kid', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetKidId: kids[toIdx].id, amount, description: note || (kids[fromIdx].name + ' to ' + kids[toIdx].name) })
+            });
+            const data = await r.json();
+            if (data.error) return alert(data.error);
+            closeTransferModal();
+            alert('Transfer request sent! Approve in Transactions tab.');
+        }
+
+        function showAddScheduled() {
+            const sel = document.getElementById('scheduled-kid');
+            sel.innerHTML = kids.map(k => '<option value="' + k.id + '">' + k.name + '</option>').join('');
+            document.getElementById('scheduled-amount').value = '';
+            document.getElementById('scheduled-desc').value = '';
+            document.getElementById('scheduled-freq').value = 'weekly';
+            updateScheduledFields();
+            document.getElementById('scheduled-modal').classList.add('active');
+        }
+
+        function closeScheduledModal() {
+            document.getElementById('scheduled-modal').classList.remove('active');
+        }
+
+        function updateScheduledFields() {
+            const freq = document.getElementById('scheduled-freq').value;
+            document.getElementById('dow-group').style.display = (freq === 'weekly' || freq === 'biweekly') ? 'block' : 'none';
+            document.getElementById('dom-group').style.display = freq === 'monthly' ? 'block' : 'none';
+        }
+
+        document.getElementById('scheduled-freq').addEventListener('change', updateScheduledFields);
+
+        async function submitScheduled() {
+            const kidId = parseInt(document.getElementById('scheduled-kid').value);
+            const amount = parseFloat(document.getElementById('scheduled-amount').value);
+            const desc = document.getElementById('scheduled-desc').value.trim() || 'Allowance';
+            const freq = document.getElementById('scheduled-freq').value;
+            const dow = document.getElementById('scheduled-dow').value;
+            const dom = document.getElementById('scheduled-dom').value;
+            if (isNaN(amount) || amount <= 0) return alert('Invalid amount');
+            const r = await fetch('/api/user/' + user + '/scheduled-payments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ kidId, amount, description: desc, frequency: freq, dayOfWeek: dow, dayOfMonth: dom })
+            });
+            const data = await r.json();
+            if (data.error) return alert(data.error);
+            closeScheduledModal();
+            await loadScheduled();
+        }
+
+        async function toggleScheduled(id, active) {
+            await fetch('/api/user/' + user + '/scheduled-payments/' + id, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ active })
+            });
+            await loadScheduled();
+        }
+
+        async function deleteScheduled(id) {
+            if (!confirm('Delete this scheduled payment?')) return;
+            await fetch('/api/user/' + user + '/scheduled-payments/' + id, { method: 'DELETE' });
+            await loadScheduled();
+        }
+
+        document.getElementById('modal-password').addEventListener('keypress', e => {
+            if (e.key === 'Enter') submitPassword();
+        });
+        document.getElementById('kid-name').addEventListener('keypress', e => {
+            if (e.key === 'Enter') document.getElementById('kid-password').focus();
+        });
+        document.getElementById('kid-password').addEventListener('keypress', e => {
+            if (e.key === 'Enter') addKid();
+        });
+
+        function logout() {
+            localStorage.removeItem('currentUser');
+            sessionStorage.clear();
+            window.location.href = '/';
+        }
+
+        loadData();
+    </script>
+</body>
+</html>

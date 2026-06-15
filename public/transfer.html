@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transfer - Family Finance</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="app-layout">
+        <nav class="topnav">
+            <a href="/dashboard" class="topnav-brand">
+                <div class="brand-icon">$</div>
+                <span class="brand-text">Family Finance</span>
+            </a>
+            <div class="topnav-nav">
+                <a href="/dashboard"><span class="nav-icon">&#9632;</span> <span class="nav-label">Dashboard</span></a>
+                <a href="/transactions"><span class="nav-icon">&#9655;</span> <span class="nav-label">Transactions</span></a>
+                <a href="/kids"><span class="nav-icon">&#9679;</span> <span class="nav-label">Kids</span></a>
+                <a href="/transfer" class="active"><span class="nav-icon">&#8644;</span> <span class="nav-label">Transfer</span></a>
+            </div>
+            <div class="topnav-right">
+                <div class="topnav-user">
+                    <div class="topnav-avatar" id="user-avatar"></div>
+                    <span class="topnav-username" id="user-display"></span>
+                </div>
+                <button class="topnav-signout" onclick="logout()">Sign Out</button>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Transfer</h1>
+                <p>Send money to another family member</p>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Send Money</span>
+                </div>
+                <form id="transfer-form">
+                    <div class="form-group">
+                        <label>Recipient Username</label>
+                        <input type="text" id="transfer-to" placeholder="Enter username" required>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Amount ($)</label>
+                            <input type="number" id="transfer-amount" step="0.01" min="0.01" placeholder="0.00" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Note (optional)</label>
+                            <input type="text" id="transfer-note" placeholder="e.g., For groceries">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Send Money</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Transfer History</span>
+                </div>
+                <div class="transaction-list" id="transfer-list">
+                    <div class="empty-state"><span class="icon">&#8644;</span><p>No transfers yet</p></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const user = localStorage.getItem('currentUser');
+        if (!user) window.location.href = '/';
+        document.getElementById('user-display').textContent = user;
+        document.getElementById('user-avatar').textContent = user[0].toUpperCase();
+
+        let transactions = [];
+
+        async function loadData() {
+            const res = await fetch('/api/user/' + user);
+            const data = await res.json();
+            transactions = data.transactions || [];
+            renderTransfers();
+        }
+
+        function fmt(n) {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+        }
+
+        function renderTransfers() {
+            const list = document.getElementById('transfer-list');
+            const txs = transactions.filter(t => t.category === 'transfer');
+            if (!txs.length) {
+                list.innerHTML = '<div class="empty-state"><span class="icon">&#8644;</span><p>No transfers yet</p></div>';
+                return;
+            }
+            list.innerHTML = txs.sort((a, b) => new Date(b.date) - new Date(a.date)).map(t => `
+                <div class="transaction-item">
+                    <div class="transaction-left">
+                        <div class="transaction-icon">${t.type === 'income' ? '&#8593;' : '&#8595;'}</div>
+                        <div class="transaction-info">
+                            <h4>${t.description}</h4>
+                            <span>${new Date(t.date).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+                    <span class="transaction-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${fmt(t.amount)}</span>
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('transfer-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const to = document.getElementById('transfer-to').value.trim();
+            const amount = parseFloat(document.getElementById('transfer-amount').value);
+            const note = document.getElementById('transfer-note').value.trim();
+            if (to === user) return alert("Can't send to yourself");
+            const res = await fetch('/api/transfer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ from: user, to, amount, note })
+            });
+            const data = await res.json();
+            if (data.error) return alert(data.error);
+            alert('Sent $' + amount.toFixed(2) + ' to ' + to);
+            e.target.reset();
+            loadData();
+        });
+
+        function logout() {
+            localStorage.removeItem('currentUser');
+            sessionStorage.clear();
+            window.location.href = '/';
+        }
+
+        loadData();
+    </script>
+</body>
+</html>

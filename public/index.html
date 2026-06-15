@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Finance - Smart Family Banking</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="landing-page">
+        <nav class="landing-nav">
+            <a href="/" class="logo">
+                <div class="logo-icon">$</div>
+                <span class="logo-text">Family Finance</span>
+            </a>
+            <div class="landing-nav-links">
+                <a href="#">Features</a>
+                <a href="#">Security</a>
+                <a href="#">Support</a>
+            </div>
+        </nav>
+
+        <section class="hero">
+            <div class="hero-content">
+                <div class="hero-text">
+                    <h1>Manage your family's finances <span>with confidence</span></h1>
+                    <p>A secure, all-in-one platform to track household spending, manage allowances, teach kids about money, and keep your family's finances organized.</p>
+                    <div class="hero-features">
+                        <div class="hero-feature">
+                            <div class="hero-feature-icon">&#10003;</div>
+                            <span>Track income, expenses, and balances in real time</span>
+                        </div>
+                        <div class="hero-feature">
+                            <div class="hero-feature-icon">&#10003;</div>
+                            <span>Give kids their own accounts with parental controls</span>
+                        </div>
+                        <div class="hero-feature">
+                            <div class="hero-feature-icon">&#10003;</div>
+                            <span>Set allowances, approve spending, and teach budgeting</span>
+                        </div>
+                        <div class="hero-feature">
+                            <div class="hero-feature-icon">&#10003;</div>
+                            <span>Transfer money between family members instantly</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="auth-card">
+                    <div class="auth-card-header">
+                        <h2>Welcome</h2>
+                        <p>Sign in to your account or create a new one</p>
+                    </div>
+
+                    <div class="auth-tabs">
+                        <button class="auth-tab active" onclick="showForm('login')">Sign In</button>
+                        <button class="auth-tab" onclick="showForm('register')">Create Account</button>
+                    </div>
+
+                    <div class="auth-form active" id="login-form-container">
+                        <form id="login-form">
+                            <div class="form-group">
+                                <label for="login-username">Username</label>
+                                <input type="text" id="login-username" placeholder="Enter your username" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="login-password">Password</label>
+                                <input type="password" id="login-password" placeholder="Enter your password" required>
+                            </div>
+                            <button type="submit" class="btn-primary">Sign In</button>
+                        </form>
+                        <div class="auth-footer">
+                            Don't have an account? <a onclick="showForm('register')">Create one</a>
+                        </div>
+                    </div>
+
+                    <div class="auth-form" id="register-form-container">
+                        <form id="register-form">
+                            <div class="form-group">
+                                <label for="reg-username">Username</label>
+                                <input type="text" id="reg-username" placeholder="Choose a username" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="reg-password">Password</label>
+                                <input type="password" id="reg-password" placeholder="Create a password" required>
+                            </div>
+                            <button type="submit" class="btn-primary">Create Account</button>
+                        </form>
+                        <div class="auth-footer">
+                            Already have an account? <a onclick="showForm('login')">Sign in</a>
+                        </div>
+                    </div>
+
+                    <div class="network-info" id="network-info" style="display:none">
+                        <h4>Share this link with your family on the same WiFi:</h4>
+                        <div class="url" id="share-url"></div>
+                        <div class="note">Anyone on your network can access the app using this link.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="landing-footer">
+            <p>&copy; 2026 Family Finance. Secure family financial management.</p>
+        </footer>
+    </div>
+
+    <script>
+        if (localStorage.getItem('currentUser')) {
+            window.location.href = '/dashboard';
+        }
+
+        async function loadNetworkInfo() {
+            try {
+                const res = await fetch('/api/network-info');
+                const data = await res.json();
+                document.getElementById('share-url').textContent = data.url;
+                document.getElementById('network-info').style.display = 'block';
+            } catch (e) {}
+        }
+        loadNetworkInfo();
+
+        function showForm(type) {
+            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+            if (type === 'login') {
+                document.querySelectorAll('.auth-tab')[0].classList.add('active');
+                document.getElementById('login-form-container').classList.add('active');
+            } else {
+                document.querySelectorAll('.auth-tab')[1].classList.add('active');
+                document.getElementById('register-form-container').classList.add('active');
+            }
+        }
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value;
+            if (!username || !password) return alert('Please fill in all fields');
+            const res = await fetch('/api/login', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+            if (data.error) return alert(data.error);
+            localStorage.setItem('currentUser', username);
+            window.location.href = '/dashboard';
+        });
+
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('reg-username').value.trim();
+            const password = document.getElementById('reg-password').value;
+            if (!username || !password) return alert('Please fill in all fields');
+            const res = await fetch('/api/register', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+            if (data.error) return alert(data.error);
+            localStorage.setItem('currentUser', username);
+            window.location.href = '/dashboard';
+        });
+    </script>
+</body>
+</html>
