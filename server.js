@@ -6,10 +6,14 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const DATA_FILE = process.env.RENDER 
-    ? path.join('/data', 'data.json') 
-    : path.join(__dirname, 'data.json');
+// Use local directory for data - on Render free tier data resets on restart
+const DATA_FILE = path.join(__dirname, 'data.json');
 
+// Ensure data directory and file exist
+const dataDir = path.dirname(DATA_FILE);
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+}
 if (!fs.existsSync(DATA_FILE)) {
     fs.writeFileSync(DATA_FILE, JSON.stringify({ users: {} }, null, 2));
 }
@@ -581,6 +585,18 @@ app.get('/api/network-info', (req, res) => {
     res.json({ ip, port: PORT, url: `http://${ip}:${PORT}` });
 });
 
+// Health check for Render
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error('Server error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+});
+
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running at http://localhost:${PORT}`);
+    console.log(`Data file: ${DATA_FILE}`);
 });
