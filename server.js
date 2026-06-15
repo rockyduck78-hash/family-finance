@@ -5,12 +5,20 @@ const mongoose = require('mongoose');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/family-finance';
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+    console.error('MONGODB_URI environment variable is not set!');
+    console.error('Please add MONGODB_URI to your Render environment variables.');
+}
 
 // Connect to MongoDB
-mongoose.connect(MONGODB_URI)
+mongoose.connect(MONGODB_URI || 'mongodb://localhost:27017/family-finance')
     .then(() => console.log('Connected to MongoDB'))
-    .catch(err => console.error('MongoDB connection error:', err));
+    .catch(err => {
+        console.error('MongoDB connection error:', err.message);
+        // Don't exit, try to continue anyway
+    });
 
 // Schemas
 const userSchema = new mongoose.Schema({
@@ -71,6 +79,17 @@ const User = mongoose.model('User', userSchema);
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Check MongoDB connection before API calls
+app.use('/api', (req, res, next) => {
+    if (mongoose.connection.readyState !== 1) {
+        return res.status(503).json({ 
+            error: 'Database not connected. Please set MONGODB_URI in Render environment variables.',
+            readyState: mongoose.connection.readyState
+        });
+    }
+    next();
+});
 
 // Helper functions
 async function getUser(username) {
@@ -677,7 +696,12 @@ app.get('/transfer', (req, res) => res.sendFile(path.join(__dirname, 'public', '
 
 // Health check for Render
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+        mongodbUri: MONGODB_URI ? 'configured' : 'NOT SET'
+    });
 });
 
 // Error handling middleware
