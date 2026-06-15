@@ -47,6 +47,94 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
+/* ===== ANIMATED BACKGROUND ===== */
+.landing-page {
+    background: linear-gradient(135deg, #0a0e1a 0%, #0d1526 30%, #0f1a30 60%, #0a1628 100%);
+    position: relative;
+    overflow: hidden;
+}
+
+.landing-page::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: 
+        radial-gradient(ellipse at 20% 20%, rgba(0, 96, 169, 0.15) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(26, 115, 199, 0.12) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(0, 45, 90, 0.1) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+    animation: pulse 8s ease-in-out infinite;
+}
+
+.landing-page::after {
+    content: '';
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: 
+        radial-gradient(circle at 30% 70%, rgba(0, 150, 255, 0.05) 0%, transparent 40%),
+        radial-gradient(circle at 70% 30%, rgba(0, 100, 200, 0.04) 0%, transparent 40%);
+    pointer-events: none;
+    z-index: 0;
+    animation: float 12s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+@keyframes float {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    33% { transform: translate(2%, -2%) rotate(1deg); }
+    66% { transform: translate(-1%, 1%) rotate(-1deg); }
+}
+
+/* Money symbols floating background */
+.money-symbols {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+}
+
+.money-symbol {
+    position: absolute;
+    font-size: 2rem;
+    color: rgba(0, 150, 255, 0.06);
+    font-weight: 700;
+    animation: floatUp 15s linear infinite;
+    text-shadow: 0 0 20px rgba(0, 150, 255, 0.1);
+}
+
+.money-symbol:nth-child(1) { left: 5%; animation-delay: 0s; font-size: 2.5rem; }
+.money-symbol:nth-child(2) { left: 15%; animation-delay: 2s; font-size: 1.8rem; }
+.money-symbol:nth-child(3) { left: 25%; animation-delay: 4s; font-size: 3rem; }
+.money-symbol:nth-child(4) { left: 35%; animation-delay: 1s; font-size: 2rem; }
+.money-symbol:nth-child(5) { left: 45%; animation-delay: 3s; font-size: 2.2rem; }
+.money-symbol:nth-child(6) { left: 55%; animation-delay: 5s; font-size: 2.8rem; }
+.money-symbol:nth-child(7) { left: 65%; animation-delay: 1.5s; font-size: 1.6rem; }
+.money-symbol:nth-child(8) { left: 75%; animation-delay: 3.5s; font-size: 2.4rem; }
+.money-symbol:nth-child(9) { left: 85%; animation-delay: 2.5s; font-size: 2rem; }
+.money-symbol:nth-child(10) { left: 92%; animation-delay: 4.5s; font-size: 2.6rem; }
+
+@keyframes floatUp {
+    0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+    10% { opacity: 0.06; }
+    90% { opacity: 0.06; }
+    100% { transform: translateY(-100px) rotate(360deg); opacity: 0; }
+}
+
 /* ===== LANDING PAGE ===== */
 .landing-page {
     min-height: 100vh;
@@ -59,11 +147,12 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 16px 40px;
-    background: var(--white);
-    border-bottom: 1px solid var(--gray-200);
+    background: rgba(10, 14, 26, 0.95);
+    border-bottom: 1px solid rgba(0, 150, 255, 0.15);
     position: sticky;
     top: 0;
     z-index: 100;
+    backdrop-filter: blur(10px);
 }
 
 .landing-nav .logo {
@@ -76,7 +165,7 @@ body {
 .landing-nav .logo-icon {
     width: 40px;
     height: 40px;
-    background: var(--blue-600);
+    background: linear-gradient(135deg, #0060a9 0%, #00a8ff 100%);
     color: var(--white);
     display: flex;
     align-items: center;
@@ -84,13 +173,15 @@ body {
     font-size: 18px;
     font-weight: 700;
     border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0, 150, 255, 0.4);
 }
 
 .landing-nav .logo-text {
     font-size: 20px;
     font-weight: 700;
-    color: var(--gray-900);
+    color: #ffffff;
     letter-spacing: -0.02em;
+    text-shadow: 0 0 10px rgba(0, 150, 255, 0.3);
 }
 
 .landing-nav-links {
@@ -100,15 +191,16 @@ body {
 }
 
 .landing-nav-links a {
-    color: var(--gray-600);
+    color: rgba(255, 255, 255, 0.7);
     text-decoration: none;
     font-size: 14px;
     font-weight: 500;
-    transition: color 0.15s;
+    transition: all 0.15s;
 }
 
 .landing-nav-links a:hover {
-    color: var(--blue-600);
+    color: #00a8ff;
+    text-shadow: 0 0 10px rgba(0, 150, 255, 0.5);
 }
 
 .hero {
@@ -117,7 +209,7 @@ body {
     align-items: center;
     justify-content: center;
     padding: 60px 40px;
-    background: linear-gradient(135deg, var(--blue-900) 0%, var(--blue-700) 50%, var(--blue-600) 100%);
+    background: transparent;
     position: relative;
     overflow: hidden;
 }
@@ -129,8 +221,9 @@ body {
     right: -20%;
     width: 600px;
     height: 600px;
-    background: rgba(255,255,255,0.03);
+    background: rgba(0, 150, 255, 0.03);
     border-radius: 50%;
+    animation: glowPulse 6s ease-in-out infinite;
 }
 
 .hero::after {
@@ -140,8 +233,14 @@ body {
     left: -10%;
     width: 400px;
     height: 400px;
-    background: rgba(255,255,255,0.02);
+    background: rgba(0, 150, 255, 0.02);
     border-radius: 50%;
+    animation: glowPulse 8s ease-in-out infinite reverse;
+}
+
+@keyframes glowPulse {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.1); }
 }
 
 .hero-content {
@@ -158,19 +257,21 @@ body {
 .hero-text h1 {
     font-size: 48px;
     font-weight: 700;
-    color: var(--white);
+    color: #ffffff;
     line-height: 1.15;
     margin-bottom: 20px;
     letter-spacing: -0.03em;
+    text-shadow: 0 0 30px rgba(0, 150, 255, 0.3);
 }
 
 .hero-text h1 span {
-    color: var(--blue-400);
+    color: #00a8ff;
+    text-shadow: 0 0 20px rgba(0, 150, 255, 0.5);
 }
 
 .hero-text p {
     font-size: 18px;
-    color: rgba(255,255,255,0.75);
+    color: rgba(255,255,255,0.7);
     line-height: 1.7;
     margin-bottom: 32px;
     max-width: 480px;
@@ -194,23 +295,28 @@ body {
 .hero-feature-icon {
     width: 28px;
     height: 28px;
-    background: rgba(255,255,255,0.12);
+    background: rgba(0, 150, 255, 0.2);
+    border: 1px solid rgba(0, 150, 255, 0.3);
     border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 13px;
     flex-shrink: 0;
+    color: #00a8ff;
+    text-shadow: 0 0 10px rgba(0, 150, 255, 0.5);
 }
 
 /* Auth Card */
 .auth-card {
-    background: var(--white);
+    background: rgba(15, 25, 45, 0.9);
+    border: 1px solid rgba(0, 150, 255, 0.2);
     border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0,0,0,0.04);
+    box-shadow: 0 0 40px rgba(0, 100, 200, 0.2), 0 0 80px rgba(0, 50, 150, 0.1);
     padding: 40px;
     width: 100%;
     max-width: 420px;
+    backdrop-filter: blur(20px);
 }
 
 .auth-card-header {
@@ -221,18 +327,20 @@ body {
 .auth-card-header h2 {
     font-size: 24px;
     font-weight: 700;
-    color: var(--gray-900);
+    color: #ffffff;
     margin-bottom: 6px;
+    text-shadow: 0 0 10px rgba(0, 150, 255, 0.3);
 }
 
 .auth-card-header p {
     font-size: 14px;
-    color: var(--gray-500);
+    color: rgba(255, 255, 255, 0.5);
 }
 
 .auth-tabs {
     display: flex;
-    background: var(--gray-100);
+    background: rgba(0, 30, 60, 0.5);
+    border: 1px solid rgba(0, 150, 255, 0.1);
     border-radius: var(--radius);
     padding: 4px;
     margin-bottom: 28px;
@@ -244,7 +352,7 @@ body {
     text-align: center;
     font-size: 14px;
     font-weight: 600;
-    color: var(--gray-500);
+    color: rgba(255, 255, 255, 0.5);
     background: none;
     border: none;
     border-radius: 6px;
@@ -253,13 +361,17 @@ body {
 }
 
 .auth-tab.active {
-    background: var(--white);
-    color: var(--blue-600);
-    box-shadow: var(--shadow-sm);
+    background: rgba(0, 100, 200, 0.3);
+    color: #00a8ff;
+    box-shadow: 0 0 15px rgba(0, 150, 255, 0.3);
 }
 
 .auth-tab:hover:not(.active) {
-    color: var(--gray-700);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.auth-tab.active:hover {
+    color: #00a8ff;
 }
 
 .auth-form {
@@ -278,46 +390,49 @@ body {
     display: block;
     font-size: 13px;
     font-weight: 600;
-    color: var(--gray-700);
+    color: rgba(255, 255, 255, 0.7);
     margin-bottom: 6px;
 }
 
 .auth-form input {
     width: 100%;
     padding: 12px 16px;
-    background: var(--white);
-    border: 1.5px solid var(--gray-300);
+    background: rgba(0, 30, 60, 0.5);
+    border: 1.5px solid rgba(0, 150, 255, 0.2);
     border-radius: var(--radius);
     font-size: 15px;
-    color: var(--gray-900);
-    transition: border-color 0.15s, box-shadow 0.15s;
+    color: #ffffff;
+    transition: all 0.15s;
 }
 
 .auth-form input:focus {
     outline: none;
-    border-color: var(--blue-500);
-    box-shadow: 0 0 0 3px rgba(26,115,199,0.12);
+    border-color: #00a8ff;
+    box-shadow: 0 0 0 3px rgba(0, 150, 255, 0.2), 0 0 20px rgba(0, 150, 255, 0.1);
 }
 
 .auth-form input::placeholder {
-    color: var(--gray-400);
+    color: rgba(255, 255, 255, 0.3);
 }
 
 .auth-form .btn-primary {
     width: 100%;
     padding: 13px;
-    background: var(--blue-600);
+    background: linear-gradient(135deg, #0060a9 0%, #00a8ff 100%);
     color: var(--white);
     border: none;
     border-radius: var(--radius);
     font-size: 15px;
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.15s, transform 0.1s;
+    transition: all 0.15s;
+    box-shadow: 0 0 20px rgba(0, 150, 255, 0.3);
 }
 
 .auth-form .btn-primary:hover {
-    background: var(--blue-700);
+    background: linear-gradient(135deg, #0070c0 0%, #00b8ff 100%);
+    box-shadow: 0 0 30px rgba(0, 150, 255, 0.5);
+    transform: translateY(-1px);
 }
 
 .auth-form .btn-primary:active {
@@ -328,13 +443,14 @@ body {
     text-align: center;
     margin-top: 24px;
     font-size: 13px;
-    color: var(--gray-500);
+    color: rgba(255, 255, 255, 0.5);
 }
 
 .auth-footer a {
-    color: var(--blue-600);
+    color: #00a8ff;
     text-decoration: none;
     font-weight: 600;
+    cursor: pointer;
     cursor: pointer;
 }
 
@@ -344,14 +460,16 @@ body {
 
 .landing-footer {
     padding: 24px 40px;
-    background: var(--gray-900);
-    color: var(--gray-400);
+    background: rgba(10, 14, 26, 0.95);
+    border-top: 1px solid rgba(0, 150, 255, 0.15);
+    color: rgba(255, 255, 255, 0.4);
     font-size: 13px;
     text-align: center;
+    backdrop-filter: blur(10px);
 }
 
 .landing-footer a {
-    color: var(--gray-300);
+    color: rgba(255, 255, 255, 0.6);
     text-decoration: none;
 }
 
