@@ -12,21 +12,11 @@ echo.
 echo Starting server...
 echo.
 
-REM Get IP address
-for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4"') do (
-    set "IP=%%a"
-    goto :found
-)
-:found
-set "IP=%IP: =%"
+
 
 echo ============================================
 echo.
-echo  THIS COMPUTER:
-echo     http://localhost:3000
-echo.
-echo  OTHER DEVICES ON YOUR WIFI:
-echo     http://%IP%:3000
+echo  http://localhost:3000
 echo.
 echo ============================================
 echo.

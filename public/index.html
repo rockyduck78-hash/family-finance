@@ -90,11 +90,7 @@
                         </div>
                     </div>
 
-                    <div class="network-info" id="network-info" style="display:none">
-                        <h4>Share this link with your family on the same WiFi:</h4>
-                        <div class="url" id="share-url"></div>
-                        <div class="note">Anyone on your network can access the app using this link.</div>
-                    </div>
+
                 </div>
             </div>
         </section>
@@ -109,15 +105,7 @@
             window.location.href = '/dashboard';
         }
 
-        async function loadNetworkInfo() {
-            try {
-                const res = await fetch('/api/network-info');
-                const data = await res.json();
-                document.getElementById('share-url').textContent = data.url;
-                document.getElementById('network-info').style.display = 'block';
-            } catch (e) {}
-        }
-        loadNetworkInfo();
+
 
         function showForm(type) {
             document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));

@@ -1064,34 +1064,7 @@ body {
 }
 
 /* Network Info */
-.network-info {
-    margin-top: 20px;
-    padding: 16px;
-    background: var(--gray-50);
-    border: 1px solid var(--gray-200);
-    border-radius: var(--radius);
-}
 
-.network-info h4 {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--gray-500);
-    margin-bottom: 8px;
-}
-
-.network-info .url {
-    font-family: 'SF Mono', 'Consolas', monospace;
-    font-size: 14px;
-    color: var(--blue-600);
-    word-break: break-all;
-}
-
-.network-info .note {
-    font-size: 12px;
-    color: var(--gray-500);
-    margin-top: 8px;
-}
 
 /* Responsive */
 @media (max-width: 900px) {
