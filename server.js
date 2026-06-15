@@ -1,565 +1,671 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/family-finance';
 
-// Use local directory for data - on Render free tier data resets on restart
-const DATA_FILE = path.join(__dirname, 'data.json');
+// Connect to MongoDB
+mongoose.connect(MONGODB_URI)
+    .then(() => console.log('Connected to MongoDB'))
+    .catch(err => console.error('MongoDB connection error:', err));
 
-// Ensure data directory and file exist
-const dataDir = path.dirname(DATA_FILE);
-if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-}
-if (!fs.existsSync(DATA_FILE)) {
-    fs.writeFileSync(DATA_FILE, JSON.stringify({ users: {} }, null, 2));
-}
+// Schemas
+const userSchema = new mongoose.Schema({
+    username: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+    transactionPassword: { type: String, default: null },
+    transactions: [{ 
+        id: Number, 
+        description: String, 
+        amount: Number, 
+        type: String, 
+        category: String, 
+        date: String 
+    }],
+    kids: [{ 
+        id: Number, 
+        name: String, 
+        password: String, 
+        balance: { type: Number, default: 0 },
+        transactions: [{ 
+            id: Number, 
+            description: String, 
+            amount: Number, 
+            type: String, 
+            date: String 
+        }]
+    }],
+    pendingApprovals: [{ 
+        id: Number, 
+        kidId: Number, 
+        kidName: String, 
+        type: String, 
+        fromKidId: Number,
+        fromKidName: String,
+        toKidId: Number,
+        toKidName: String,
+        amount: Number, 
+        description: String, 
+        date: String 
+    }],
+    scheduledPayments: [{ 
+        id: Number, 
+        kidId: Number, 
+        kidName: String, 
+        amount: Number, 
+        description: String, 
+        frequency: String, 
+        dayOfWeek: Number, 
+        dayOfMonth: Number, 
+        lastPaid: String, 
+        active: { type: Boolean, default: true },
+        created: String 
+    }]
+}, { timestamps: true });
+
+const User = mongoose.model('User', userSchema);
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-function readData() {
-    try {
-        const content = fs.readFileSync(DATA_FILE, 'utf8');
-        return JSON.parse(content);
-    } catch (e) {
-        const defaultData = { users: {} };
-        fs.writeFileSync(DATA_FILE, JSON.stringify(defaultData, null, 2));
-        return defaultData;
-    }
-}
-
-function writeData(data) {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+// Helper functions
+async function getUser(username) {
+    return await User.findOne({ username });
 }
 
 // Auth
-app.post('/api/register', (req, res) => {
-    const { username, password } = req.body;
-    const data = readData();
-    
-    if (data.users[username]) {
-        return res.status(400).json({ error: 'Username already exists' });
+app.post('/api/register', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const existing = await User.findOne({ username });
+        
+        if (existing) {
+            return res.status(400).json({ error: 'Username already exists' });
+        }
+        
+        await User.create({
+            username,
+            password,
+            transactionPassword: null,
+            transactions: [],
+            kids: [],
+            pendingApprovals: [],
+            scheduledPayments: []
+        });
+        
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
     }
-    
-    data.users[username] = { 
-        password, 
-        transactionPassword: null,
-        transactions: [], 
-        kids: [],
-        pendingApprovals: []
-    };
-    writeData(data);
-    res.json({ success: true });
 });
 
-app.post('/api/login', (req, res) => {
-    const { username, password } = req.body;
-    const data = readData();
-    
-    if (!data.users[username]) {
-        return res.status(404).json({ error: 'User not found' });
+app.post('/api/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const user = await User.findOne({ username });
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        if (user.password !== password) {
+            return res.status(401).json({ error: 'Incorrect password' });
+        }
+        
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
     }
-    if (data.users[username].password !== password) {
-        return res.status(401).json({ error: 'Incorrect password' });
-    }
-    
-    res.json({ success: true });
 });
 
 // Transaction password
-app.post('/api/set-transaction-password', (req, res) => {
-    const { username, password } = req.body;
-    const data = readData();
-    
-    if (!data.users[username]) {
-        return res.status(404).json({ error: 'User not found' });
+app.post('/api/set-transaction-password', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const user = await User.findOne({ username });
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        user.transactionPassword = password;
+        await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
     }
-    
-    data.users[username].transactionPassword = password;
-    writeData(data);
-    res.json({ success: true });
 });
 
-app.post('/api/verify-transaction-password', (req, res) => {
-    const { username, password } = req.body;
-    const data = readData();
-    
-    if (!data.users[username]) {
-        return res.status(404).json({ error: 'User not found' });
+app.post('/api/verify-transaction-password', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const user = await User.findOne({ username });
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        if (!user.transactionPassword) {
+            return res.json({ success: true });
+        }
+        if (user.transactionPassword !== password) {
+            return res.status(401).json({ error: 'Incorrect password' });
+        }
+        
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
     }
-    if (!data.users[username].transactionPassword) {
-        return res.json({ success: true });
-    }
-    if (data.users[username].transactionPassword !== password) {
-        return res.status(401).json({ error: 'Incorrect password' });
-    }
-    
-    res.json({ success: true });
 });
 
 // User data
-app.get('/api/user/:username', (req, res) => {
-    const data = readData();
-    if (!data.users[req.params.username]) {
-        return res.status(404).json({ error: 'User not found' });
+app.get('/api/user/:username', async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json({
+            transactions: user.transactions || [],
+            kids: user.kids || [],
+            pendingApprovals: user.pendingApprovals || [],
+            hasTransactionPassword: !!user.transactionPassword
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
     }
-    const user = data.users[req.params.username];
-    res.json({
-        transactions: user.transactions || [],
-        kids: user.kids || [],
-        pendingApprovals: user.pendingApprovals || [],
-        hasTransactionPassword: !!user.transactionPassword
-    });
 });
 
 // Transactions
-app.put('/api/user/:username/transactions', (req, res) => {
-    const data = readData();
-    if (!data.users[req.params.username]) {
-        return res.status(404).json({ error: 'User not found' });
+app.put('/api/user/:username/transactions', async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        user.transactions = req.body.transactions;
+        await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
     }
-    data.users[req.params.username].transactions = req.body.transactions;
-    writeData(data);
-    res.json({ success: true });
 });
 
 // Kids
-app.put('/api/user/:username/kids', (req, res) => {
-    const data = readData();
-    if (!data.users[req.params.username]) {
-        return res.status(404).json({ error: 'User not found' });
+app.put('/api/user/:username/kids', async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        user.kids = req.body.kids;
+        await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
     }
-    data.users[req.params.username].kids = req.body.kids;
-    writeData(data);
-    res.json({ success: true });
 });
 
 // Kid requests to add money (goes to pending)
-app.post('/api/user/:username/kids/:kidId/request-money', (req, res) => {
-    const { username, kidId } = req.params;
-    const { amount, description } = req.body;
-    const data = readData();
-    
-    if (!data.users[username]) {
-        return res.status(404).json({ error: 'User not found' });
+app.post('/api/user/:username/kids/:kidId/request-money', async (req, res) => {
+    try {
+        const { username, kidId } = req.params;
+        const { amount, description } = req.body;
+        const user = await User.findOne({ username });
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const kid = user.kids.find(k => k.id === parseInt(kidId));
+        if (!kid) {
+            return res.status(404).json({ error: 'Kid not found' });
+        }
+        
+        if (!user.pendingApprovals) user.pendingApprovals = [];
+        
+        user.pendingApprovals.push({
+            id: Date.now(),
+            kidId: kid.id,
+            kidName: kid.name,
+            type: 'add',
+            amount: amount,
+            description: description,
+            date: new Date().toISOString()
+        });
+        
+        await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
     }
-    
-    const user = data.users[username];
-    const kid = user.kids.find(k => k.id === parseInt(kidId));
-    
-    if (!kid) {
-        return res.status(404).json({ error: 'Kid not found' });
-    }
-    
-    if (!user.pendingApprovals) user.pendingApprovals = [];
-    
-    user.pendingApprovals.push({
-        id: Date.now(),
-        kidId: kid.id,
-        kidName: kid.name,
-        type: 'add',
-        amount: amount,
-        description: description,
-        date: new Date().toISOString()
-    });
-    
-    writeData(data);
-    res.json({ success: true });
 });
 
 // Kid requests to spend money (goes to pending)
-app.post('/api/user/:username/kids/:kidId/request-spend', (req, res) => {
-    const { username, kidId } = req.params;
-    const { amount, description } = req.body;
-    const data = readData();
-    
-    if (!data.users[username]) {
-        return res.status(404).json({ error: 'User not found' });
-    }
-    
-    const user = data.users[username];
-    const kid = user.kids.find(k => k.id === parseInt(kidId));
-    
-    if (!kid) {
-        return res.status(404).json({ error: 'Kid not found' });
-    }
-    
-    if (amount > kid.balance) {
-        return res.status(400).json({ error: 'Insufficient kid balance' });
-    }
-    
-    if (!user.pendingApprovals) user.pendingApprovals = [];
-    
-    user.pendingApprovals.push({
-        id: Date.now(),
-        kidId: kid.id,
-        kidName: kid.name,
-        type: 'spend',
-        amount: amount,
-        description: description,
-        date: new Date().toISOString()
-    });
-    
-    writeData(data);
-    res.json({ success: true });
-});
-
-// Approve a pending request
-app.post('/api/user/:username/approve/:approvalId', (req, res) => {
-    const { username, approvalId } = req.params;
-    const data = readData();
-    
-    if (!data.users[username]) {
-        return res.status(404).json({ error: 'User not found' });
-    }
-    
-    const user = data.users[username];
-    const approvalIndex = (user.pendingApprovals || []).findIndex(a => a.id === parseInt(approvalId));
-    
-    if (approvalIndex === -1) {
-        return res.status(404).json({ error: 'Approval not found' });
-    }
-    
-    const approval = user.pendingApprovals[approvalIndex];
-    const now = new Date().toISOString();
-    
-    if (!user.transactions) user.transactions = [];
-    
-    if (approval.type === 'add') {
-        const kidIndex = user.kids.findIndex(k => k.id === approval.kidId);
-        if (kidIndex === -1) return res.status(404).json({ error: 'Kid not found' });
-        if (!user.kids[kidIndex].transactions) user.kids[kidIndex].transactions = [];
+app.post('/api/user/:username/kids/:kidId/request-spend', async (req, res) => {
+    try {
+        const { username, kidId } = req.params;
+        const { amount, description } = req.body;
+        const user = await User.findOne({ username });
         
-        const income = user.transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-        const expenses = user.transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-        if (approval.amount > (income - expenses)) {
-            return res.status(400).json({ error: 'Insufficient parent balance' });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
         }
         
-        user.kids[kidIndex].balance += approval.amount;
-        user.kids[kidIndex].transactions.push({
-            id: Date.now(),
-            description: approval.description,
-            amount: approval.amount,
-            type: 'income',
-            date: now
-        });
-        user.transactions.push({
-            id: Date.now() + 2,
-            description: `Given to ${approval.kidName}: ${approval.description}`,
-            amount: approval.amount,
-            type: 'expense',
-            category: 'kids',
-            date: now
-        });
-    } else if (approval.type === 'kid-transfer') {
-        const fromKid = user.kids.find(k => k.id === approval.fromKidId);
-        const toKid = user.kids.find(k => k.id === approval.toKidId);
+        const kid = user.kids.find(k => k.id === parseInt(kidId));
+        if (!kid) {
+            return res.status(404).json({ error: 'Kid not found' });
+        }
         
-        if (!fromKid || !toKid) return res.status(404).json({ error: 'Kid not found' });
-        if (approval.amount > fromKid.balance) return res.status(400).json({ error: 'Insufficient kid balance' });
-        
-        if (!fromKid.transactions) fromKid.transactions = [];
-        if (!toKid.transactions) toKid.transactions = [];
-        
-        fromKid.balance -= approval.amount;
-        fromKid.transactions.push({
-            id: Date.now(),
-            description: `Sent to ${toKid.name}: ${approval.description}`,
-            amount: approval.amount,
-            type: 'expense',
-            date: now
-        });
-        
-        toKid.balance += approval.amount;
-        toKid.transactions.push({
-            id: Date.now() + 1,
-            description: `Received from ${fromKid.name}: ${approval.description}`,
-            amount: approval.amount,
-            type: 'income',
-            date: now
-        });
-    } else {
-        const kidIndex = user.kids.findIndex(k => k.id === approval.kidId);
-        if (kidIndex === -1) return res.status(404).json({ error: 'Kid not found' });
-        if (!user.kids[kidIndex].transactions) user.kids[kidIndex].transactions = [];
-        
-        if (approval.amount > user.kids[kidIndex].balance) {
+        if (amount > kid.balance) {
             return res.status(400).json({ error: 'Insufficient kid balance' });
         }
         
-        user.kids[kidIndex].balance -= approval.amount;
-        user.kids[kidIndex].transactions.push({
+        if (!user.pendingApprovals) user.pendingApprovals = [];
+        
+        user.pendingApprovals.push({
             id: Date.now(),
-            description: approval.description,
-            amount: approval.amount,
-            type: 'expense',
-            date: now
+            kidId: kid.id,
+            kidName: kid.name,
+            type: 'spend',
+            amount: amount,
+            description: description,
+            date: new Date().toISOString()
         });
-        user.transactions.push({
-            id: Date.now() + 2,
-            description: `Received from ${approval.kidName}: ${approval.description}`,
-            amount: approval.amount,
-            type: 'income',
-            category: 'kids',
-            date: now
-        });
+        
+        await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
     }
-    
-    user.pendingApprovals.splice(approvalIndex, 1);
-    writeData(data);
-    res.json({ success: true });
+});
+
+// Approve a pending request
+app.post('/api/user/:username/approve/:approvalId', async (req, res) => {
+    try {
+        const { username, approvalId } = req.params;
+        const user = await User.findOne({ username });
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const approvalIndex = (user.pendingApprovals || []).findIndex(a => a.id === parseInt(approvalId));
+        
+        if (approvalIndex === -1) {
+            return res.status(404).json({ error: 'Approval not found' });
+        }
+        
+        const approval = user.pendingApprovals[approvalIndex];
+        const now = new Date().toISOString();
+        
+        if (!user.transactions) user.transactions = [];
+        
+        if (approval.type === 'add') {
+            const kidIndex = user.kids.findIndex(k => k.id === approval.kidId);
+            if (kidIndex === -1) return res.status(404).json({ error: 'Kid not found' });
+            if (!user.kids[kidIndex].transactions) user.kids[kidIndex].transactions = [];
+            
+            const income = user.transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+            const expenses = user.transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+            if (approval.amount > (income - expenses)) {
+                return res.status(400).json({ error: 'Insufficient parent balance' });
+            }
+            
+            user.kids[kidIndex].balance += approval.amount;
+            user.kids[kidIndex].transactions.push({
+                id: Date.now(),
+                description: approval.description,
+                amount: approval.amount,
+                type: 'income',
+                date: now
+            });
+            user.transactions.push({
+                id: Date.now() + 2,
+                description: `Given to ${approval.kidName}: ${approval.description}`,
+                amount: approval.amount,
+                type: 'expense',
+                category: 'kids',
+                date: now
+            });
+        } else if (approval.type === 'kid-transfer') {
+            const fromKid = user.kids.find(k => k.id === approval.fromKidId);
+            const toKid = user.kids.find(k => k.id === approval.toKidId);
+            
+            if (!fromKid || !toKid) return res.status(404).json({ error: 'Kid not found' });
+            if (approval.amount > fromKid.balance) return res.status(400).json({ error: 'Insufficient kid balance' });
+            
+            if (!fromKid.transactions) fromKid.transactions = [];
+            if (!toKid.transactions) toKid.transactions = [];
+            
+            fromKid.balance -= approval.amount;
+            fromKid.transactions.push({
+                id: Date.now(),
+                description: `Sent to ${toKid.name}: ${approval.description}`,
+                amount: approval.amount,
+                type: 'expense',
+                date: now
+            });
+            
+            toKid.balance += approval.amount;
+            toKid.transactions.push({
+                id: Date.now() + 1,
+                description: `Received from ${fromKid.name}: ${approval.description}`,
+                amount: approval.amount,
+                type: 'income',
+                date: now
+            });
+        } else {
+            const kidIndex = user.kids.findIndex(k => k.id === approval.kidId);
+            if (kidIndex === -1) return res.status(404).json({ error: 'Kid not found' });
+            if (!user.kids[kidIndex].transactions) user.kids[kidIndex].transactions = [];
+            
+            if (approval.amount > user.kids[kidIndex].balance) {
+                return res.status(400).json({ error: 'Insufficient kid balance' });
+            }
+            
+            user.kids[kidIndex].balance -= approval.amount;
+            user.kids[kidIndex].transactions.push({
+                id: Date.now(),
+                description: approval.description,
+                amount: approval.amount,
+                type: 'expense',
+                date: now
+            });
+            user.transactions.push({
+                id: Date.now() + 2,
+                description: `Received from ${approval.kidName}: ${approval.description}`,
+                amount: approval.amount,
+                type: 'income',
+                category: 'kids',
+                date: now
+            });
+        }
+        
+        user.pendingApprovals.splice(approvalIndex, 1);
+        await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
 });
 
 // Deny a pending request
-app.post('/api/user/:username/deny/:approvalId', (req, res) => {
-    const { username, approvalId } = req.params;
-    const data = readData();
-    
-    if (!data.users[username]) {
-        return res.status(404).json({ error: 'User not found' });
+app.post('/api/user/:username/deny/:approvalId', async (req, res) => {
+    try {
+        const { username, approvalId } = req.params;
+        const user = await User.findOne({ username });
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const index = (user.pendingApprovals || []).findIndex(a => a.id === parseInt(approvalId));
+        
+        if (index === -1) {
+            return res.status(404).json({ error: 'Approval not found' });
+        }
+        
+        user.pendingApprovals.splice(index, 1);
+        await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
     }
-    
-    const user = data.users[username];
-    const index = (user.pendingApprovals || []).findIndex(a => a.id === parseInt(approvalId));
-    
-    if (index === -1) {
-        return res.status(404).json({ error: 'Approval not found' });
-    }
-    
-    user.pendingApprovals.splice(index, 1);
-    writeData(data);
-    res.json({ success: true });
 });
 
 // Kid-to-kid transfer request
-app.post('/api/user/:username/kids/:kidId/transfer-to-kid', (req, res) => {
-    const { username, kidId } = req.params;
-    const { targetKidId, amount, description } = req.body;
-    const data = readData();
+app.post('/api/user/:username/kids/:kidId/transfer-to-kid', async (req, res) => {
+    try {
+        const { username, kidId } = req.params;
+        const { targetKidId, amount, description } = req.body;
+        const user = await User.findOne({ username });
 
-    if (!data.users[username]) {
-        return res.status(404).json({ error: 'User not found' });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const fromKid = user.kids.find(k => k.id === parseInt(kidId));
+        const toKid = user.kids.find(k => k.id === parseInt(targetKidId));
+
+        if (!fromKid) return res.status(404).json({ error: 'Source kid not found' });
+        if (!toKid) return res.status(404).json({ error: 'Target kid not found' });
+        if (fromKid.id === toKid.id) return res.status(400).json({ error: 'Cannot transfer to yourself' });
+        if (amount <= 0) return res.status(400).json({ error: 'Amount must be positive' });
+
+        if (!user.pendingApprovals) user.pendingApprovals = [];
+
+        user.pendingApprovals.push({
+            id: Date.now(),
+            type: 'kid-transfer',
+            fromKidId: fromKid.id,
+            fromKidName: fromKid.name,
+            toKidId: toKid.id,
+            toKidName: toKid.name,
+            amount: amount,
+            description: description || `${fromKid.name} → ${toKid.name}`,
+            date: new Date().toISOString()
+        });
+
+        await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
     }
-
-    const user = data.users[username];
-    const fromKid = user.kids.find(k => k.id === parseInt(kidId));
-    const toKid = user.kids.find(k => k.id === parseInt(targetKidId));
-
-    if (!fromKid) return res.status(404).json({ error: 'Source kid not found' });
-    if (!toKid) return res.status(404).json({ error: 'Target kid not found' });
-    if (fromKid.id === toKid.id) return res.status(400).json({ error: 'Cannot transfer to yourself' });
-    if (amount <= 0) return res.status(400).json({ error: 'Amount must be positive' });
-
-    if (!user.pendingApprovals) user.pendingApprovals = [];
-
-    user.pendingApprovals.push({
-        id: Date.now(),
-        type: 'kid-transfer',
-        fromKidId: fromKid.id,
-        fromKidName: fromKid.name,
-        toKidId: toKid.id,
-        toKidName: toKid.name,
-        amount: amount,
-        description: description || `${fromKid.name} → ${toKid.name}`,
-        date: new Date().toISOString()
-    });
-
-    writeData(data);
-    res.json({ success: true });
 });
 
 // Scheduled payments
-app.get('/api/user/:username/scheduled-payments', (req, res) => {
-    const data = readData();
-    if (!data.users[req.params.username]) {
-        return res.status(404).json({ error: 'User not found' });
+app.get('/api/user/:username/scheduled-payments', async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json(user.scheduledPayments || []);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
     }
-    res.json(data.users[req.params.username].scheduledPayments || []);
 });
 
-app.post('/api/user/:username/scheduled-payments', (req, res) => {
-    const { username } = req.params;
-    const { kidId, amount, description, frequency, dayOfWeek, dayOfMonth } = req.body;
-    const data = readData();
+app.post('/api/user/:username/scheduled-payments', async (req, res) => {
+    try {
+        const { username } = req.params;
+        const { kidId, amount, description, frequency, dayOfWeek, dayOfMonth } = req.body;
+        const user = await User.findOne({ username });
 
-    if (!data.users[username]) return res.status(404).json({ error: 'User not found' });
+        if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const user = data.users[username];
-    const kid = user.kids.find(k => k.id === parseInt(kidId));
-    if (!kid) return res.status(404).json({ error: 'Kid not found' });
+        const kid = user.kids.find(k => k.id === parseInt(kidId));
+        if (!kid) return res.status(404).json({ error: 'Kid not found' });
 
-    if (!user.scheduledPayments) user.scheduledPayments = [];
+        if (!user.scheduledPayments) user.scheduledPayments = [];
 
-    const payment = {
-        id: Date.now(),
-        kidId: kid.id,
-        kidName: kid.name,
-        amount: parseFloat(amount),
-        description: description || 'Allowance',
-        frequency,
-        dayOfWeek: parseInt(dayOfWeek) || 0,
-        dayOfMonth: parseInt(dayOfMonth) || 1,
-        lastPaid: null,
-        active: true,
-        created: new Date().toISOString()
-    };
+        const payment = {
+            id: Date.now(),
+            kidId: kid.id,
+            kidName: kid.name,
+            amount: parseFloat(amount),
+            description: description || 'Allowance',
+            frequency,
+            dayOfWeek: parseInt(dayOfWeek) || 0,
+            dayOfMonth: parseInt(dayOfMonth) || 1,
+            lastPaid: null,
+            active: true,
+            created: new Date().toISOString()
+        };
 
-    user.scheduledPayments.push(payment);
-    writeData(data);
-    res.json({ success: true, payment });
+        user.scheduledPayments.push(payment);
+        await user.save();
+        res.json({ success: true, payment });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
 });
 
-app.put('/api/user/:username/scheduled-payments/:paymentId', (req, res) => {
-    const { username, paymentId } = req.params;
-    const { active } = req.body;
-    const data = readData();
+app.put('/api/user/:username/scheduled-payments/:paymentId', async (req, res) => {
+    try {
+        const { username, paymentId } = req.params;
+        const { active } = req.body;
+        const user = await User.findOne({ username });
 
-    if (!data.users[username]) return res.status(404).json({ error: 'User not found' });
+        if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const user = data.users[username];
-    const payment = (user.scheduledPayments || []).find(p => p.id === parseInt(paymentId));
-    if (!payment) return res.status(404).json({ error: 'Payment not found' });
+        const payment = (user.scheduledPayments || []).find(p => p.id === parseInt(paymentId));
+        if (!payment) return res.status(404).json({ error: 'Payment not found' });
 
-    payment.active = active;
-    writeData(data);
-    res.json({ success: true });
+        payment.active = active;
+        await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
 });
 
-app.delete('/api/user/:username/scheduled-payments/:paymentId', (req, res) => {
-    const { username, paymentId } = req.params;
-    const data = readData();
+app.delete('/api/user/:username/scheduled-payments/:paymentId', async (req, res) => {
+    try {
+        const { username, paymentId } = req.params;
+        const user = await User.findOne({ username });
 
-    if (!data.users[username]) return res.status(404).json({ error: 'User not found' });
+        if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const user = data.users[username];
-    const index = (user.scheduledPayments || []).findIndex(p => p.id === parseInt(paymentId));
-    if (index === -1) return res.status(404).json({ error: 'Payment not found' });
+        const index = (user.scheduledPayments || []).findIndex(p => p.id === parseInt(paymentId));
+        if (index === -1) return res.status(404).json({ error: 'Payment not found' });
 
-    user.scheduledPayments.splice(index, 1);
-    writeData(data);
-    res.json({ success: true });
+        user.scheduledPayments.splice(index, 1);
+        await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
 });
 
-function processScheduledPayments() {
-    const data = readData();
-    const now = new Date();
-    let changed = false;
+async function processScheduledPayments() {
+    try {
+        const users = await User.find({});
+        const now = new Date();
 
-    for (const username of Object.keys(data.users)) {
-        const user = data.users[username];
-        if (!user.scheduledPayments || !user.kids) continue;
+        for (const user of users) {
+            if (!user.scheduledPayments || !user.kids) continue;
+            let changed = false;
 
-        for (const sp of user.scheduledPayments) {
-            if (!sp.active) continue;
-            if (!sp.lastPaid) {
-                sp.lastPaid = now.toISOString();
-                changed = true;
-                continue;
-            }
-
-            const lastPaid = new Date(sp.lastPaid);
-            const diffDays = Math.floor((now - lastPaid) / (1000 * 60 * 60 * 24));
-            let shouldPay = false;
-
-            if (sp.frequency === 'daily' && diffDays >= 1) {
-                shouldPay = true;
-            } else if (sp.frequency === 'weekly' && diffDays >= 7) {
-                shouldPay = true;
-            } else if (sp.frequency === 'biweekly' && diffDays >= 14) {
-                shouldPay = true;
-            } else if (sp.frequency === 'monthly' && (now.getDate() >= sp.dayOfMonth && now.getDate() <= sp.dayOfMonth + 1)) {
-                const monthDiff = (now.getFullYear() - lastPaid.getFullYear()) * 12 + now.getMonth() - lastPaid.getMonth();
-                if (monthDiff >= 1 || (monthDiff === 0 && now.getDate() === sp.dayOfMonth)) {
-                    shouldPay = true;
-                }
-            }
-
-            if (shouldPay) {
-                const kid = user.kids.find(k => k.id === sp.kidId);
-                if (kid) {
-                    if (!user.transactions) user.transactions = [];
-                    if (!kid.transactions) kid.transactions = [];
-
-                    user.transactions.push({
-                        id: Date.now(),
-                        description: `Auto: ${sp.description} → ${sp.kidName}`,
-                        amount: sp.amount,
-                        type: 'expense',
-                        category: 'kids',
-                        date: now.toISOString()
-                    });
-
-                    kid.balance += sp.amount;
-                    kid.transactions.push({
-                        id: Date.now() + 1,
-                        description: sp.description,
-                        amount: sp.amount,
-                        type: 'income',
-                        date: now.toISOString()
-                    });
-
+            for (const sp of user.scheduledPayments) {
+                if (!sp.active) continue;
+                if (!sp.lastPaid) {
                     sp.lastPaid = now.toISOString();
                     changed = true;
+                    continue;
+                }
+
+                const lastPaid = new Date(sp.lastPaid);
+                const diffDays = Math.floor((now - lastPaid) / (1000 * 60 * 60 * 24));
+                let shouldPay = false;
+
+                if (sp.frequency === 'daily' && diffDays >= 1) {
+                    shouldPay = true;
+                } else if (sp.frequency === 'weekly' && diffDays >= 7) {
+                    shouldPay = true;
+                } else if (sp.frequency === 'biweekly' && diffDays >= 14) {
+                    shouldPay = true;
+                } else if (sp.frequency === 'monthly' && (now.getDate() >= sp.dayOfMonth && now.getDate() <= sp.dayOfMonth + 1)) {
+                    const monthDiff = (now.getFullYear() - lastPaid.getFullYear()) * 12 + now.getMonth() - lastPaid.getMonth();
+                    if (monthDiff >= 1 || (monthDiff === 0 && now.getDate() === sp.dayOfMonth)) {
+                        shouldPay = true;
+                    }
+                }
+
+                if (shouldPay) {
+                    const kid = user.kids.find(k => k.id === sp.kidId);
+                    if (kid) {
+                        if (!user.transactions) user.transactions = [];
+                        if (!kid.transactions) kid.transactions = [];
+
+                        user.transactions.push({
+                            id: Date.now(),
+                            description: `Auto: ${sp.description} → ${sp.kidName}`,
+                            amount: sp.amount,
+                            type: 'expense',
+                            category: 'kids',
+                            date: now.toISOString()
+                        });
+
+                        kid.balance += sp.amount;
+                        kid.transactions.push({
+                            id: Date.now() + 1,
+                            description: sp.description,
+                            amount: sp.amount,
+                            type: 'income',
+                            date: now.toISOString()
+                        });
+
+                        sp.lastPaid = now.toISOString();
+                        changed = true;
+                    }
                 }
             }
-        }
-    }
 
-    if (changed) writeData(data);
+            if (changed) await user.save();
+        }
+    } catch (err) {
+        console.error('Error processing scheduled payments:', err);
+    }
 }
 
 setInterval(processScheduledPayments, 60 * 1000);
 processScheduledPayments();
 
 // Transfer
-app.post('/api/transfer', (req, res) => {
-    const { from, to, amount, note } = req.body;
-    const data = readData();
-    
-    if (!data.users[from]) {
-        return res.status(404).json({ error: 'Sender not found' });
+app.post('/api/transfer', async (req, res) => {
+    try {
+        const { from, to, amount, note } = req.body;
+        
+        const sender = await User.findOne({ username: from });
+        const recipient = await User.findOne({ username: to });
+        
+        if (!sender) {
+            return res.status(404).json({ error: 'Sender not found' });
+        }
+        if (!recipient) {
+            return res.status(404).json({ error: 'Recipient not found' });
+        }
+        if (from === to) {
+            return res.status(400).json({ error: 'Cannot send to yourself' });
+        }
+        
+        const senderTx = sender.transactions || [];
+        const income = senderTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+        const expenses = senderTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+        const balance = income - expenses;
+        
+        if (amount > balance) {
+            return res.status(400).json({ error: 'Insufficient balance' });
+        }
+        
+        const now = new Date().toISOString();
+        
+        if (!sender.transactions) sender.transactions = [];
+        if (!recipient.transactions) recipient.transactions = [];
+        
+        sender.transactions.push({
+            id: Date.now(),
+            description: `Sent to ${to}: ${note || 'Transfer'}`,
+            amount, type: 'expense', category: 'transfer', date: now
+        });
+        
+        recipient.transactions.push({
+            id: Date.now() + 1,
+            description: `Received from ${from}: ${note || 'Transfer'}`,
+            amount, type: 'income', category: 'transfer', date: now
+        });
+        
+        await sender.save();
+        await recipient.save();
+        
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
     }
-    if (!data.users[to]) {
-        return res.status(404).json({ error: 'Recipient not found' });
-    }
-    if (from === to) {
-        return res.status(400).json({ error: 'Cannot send to yourself' });
-    }
-    
-    const senderTx = data.users[from].transactions || [];
-    const income = senderTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const expenses = senderTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-    const balance = income - expenses;
-    
-    if (amount > balance) {
-        return res.status(400).json({ error: 'Insufficient balance' });
-    }
-    
-    const now = new Date().toISOString();
-    
-    if (!data.users[from].transactions) data.users[from].transactions = [];
-    if (!data.users[to].transactions) data.users[to].transactions = [];
-    
-    data.users[from].transactions.push({
-        id: Date.now(),
-        description: `Sent to ${to}: ${note || 'Transfer'}`,
-        amount, type: 'expense', category: 'transfer', date: now
-    });
-    
-    data.users[to].transactions.push({
-        id: Date.now() + 1,
-        description: `Received from ${from}: ${note || 'Transfer'}`,
-        amount, type: 'income', category: 'transfer', date: now
-    });
-    
-    writeData(data);
-    res.json({ success: true });
 });
 
 // Pages
@@ -568,22 +674,6 @@ app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 
 app.get('/transactions', (req, res) => res.sendFile(path.join(__dirname, 'public', 'transactions.html')));
 app.get('/kids', (req, res) => res.sendFile(path.join(__dirname, 'public', 'kids.html')));
 app.get('/transfer', (req, res) => res.sendFile(path.join(__dirname, 'public', 'transfer.html')));
-
-// Network info
-app.get('/api/network-info', (req, res) => {
-    const os = require('os');
-    const interfaces = os.networkInterfaces();
-    let ip = 'localhost';
-    for (const name of Object.keys(interfaces)) {
-        for (const iface of interfaces[name]) {
-            if (iface.family === 'IPv4' && !iface.internal) {
-                ip = iface.address;
-                break;
-            }
-        }
-    }
-    res.json({ ip, port: PORT, url: `http://${ip}:${PORT}` });
-});
 
 // Health check for Render
 app.get('/health', (req, res) => {
@@ -598,5 +688,5 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running at http://localhost:${PORT}`);
-    console.log(`Data file: ${DATA_FILE}`);
+    console.log(`Connected to MongoDB`);
 });
