@@ -347,6 +347,26 @@
             renderTransactions();
         }
 
+        async function navigateTo(page) {
+            const pw = prompt('Enter your password to continue:');
+            if (pw === null) return;
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pw })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    window.location.href = page;
+                } else {
+                    alert(data.error || 'Incorrect password');
+                }
+            } catch (e) {
+                alert('Failed to verify password');
+            }
+        }
+
         function logout() {
             localStorage.removeItem('currentUser');
             sessionStorage.removeItem('txUnlocked_' + user);
