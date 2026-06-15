@@ -4,9 +4,11 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
-const DATA_FILE = path.join(__dirname, 'data.json');
+const DATA_FILE = process.env.RENDER 
+    ? path.join('/data', 'data.json') 
+    : path.join(__dirname, 'data.json');
 
 if (!fs.existsSync(DATA_FILE)) {
     fs.writeFileSync(DATA_FILE, JSON.stringify({ users: {} }, null, 2));
