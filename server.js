@@ -27,22 +27,41 @@ if (!MONGODB_URI) {
     console.error('Please add MONGODB_URI to your Render environment variables.');
 }
 
-// Connect to MongoDB
-mongoose.connect(MONGODB_URI || 'mongodb://localhost:27017/family-finance')
-    .then(() => console.log('Connected to MongoDB'))
-    .catch(err => {
+// Connect to MongoDB with retry
+let mongoReady = false;
+
+async function connectMongo() {
+    try {
+        if (!MONGODB_URI) {
+            console.error('MONGODB_URI not set!');
+            return;
+        }
+        await mongoose.connect(MONGODB_URI, {
+            serverSelectionTimeoutMS: 5000,
+            heartbeatFrequencyMS: 30000,
+            maxPoolSize: 5
+        });
+        mongoReady = true;
+        console.log('Connected to MongoDB');
+    } catch (err) {
         console.error('MongoDB connection error:', err.message);
-    });
+        mongoReady = false;
+        setTimeout(connectMongo, 10000);
+    }
+}
+
+connectMongo();
 
 mongoose.connection.on('disconnected', () => {
-    console.log('MongoDB disconnected, attempting reconnect...');
-    setTimeout(() => {
-        if (MONGODB_URI) {
-            mongoose.connect(MONGODB_URI).catch(err => {
-                console.error('MongoDB reconnect failed:', err.message);
-            });
-        }
-    }, 5000);
+    mongoReady = false;
+    console.log('MongoDB disconnected');
+    setTimeout(connectMongo, 5000);
+});
+
+mongoose.connection.on('connected', () => {
+    mongoReady = true;
+    console.log('MongoDB connected event fired');
+    processScheduledPayments();
 });
 
 // Schemas
@@ -108,13 +127,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Check MongoDB connection before API calls
+// Log MongoDB connection state for API calls
 app.use('/api', (req, res, next) => {
-    if (mongoose.connection.readyState !== 1) {
-        console.error('MongoDB not connected, readyState:', mongoose.connection.readyState);
-        return res.status(503).json({ 
-            error: 'Database not connected. Retrying...'
-        });
+    if (!mongoReady && mongoose.connection.readyState !== 1) {
+        console.error('API request while MongoDB not connected:', req.method, req.path);
     }
     next();
 });
@@ -154,6 +170,7 @@ app.post('/api/register', async (req, res) => {
         
         res.json({ success: true });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -172,6 +189,7 @@ app.post('/api/login', async (req, res) => {
         
         res.json({ success: true });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -187,9 +205,11 @@ app.get('/api/user/:username', async (req, res) => {
             transactions: user.transactions || [],
             kids: user.kids || [],
             pendingApprovals: user.pendingApprovals || [],
+            scheduledPayments: user.scheduledPayments || [],
             settings: user.settings || {}
         });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -205,7 +225,8 @@ app.put('/api/user/:username/transactions', async (req, res) => {
         await user.save();
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: 'Server error' });
+        console.error('Save transactions error:', err.message);
+        res.status(500).json({ error: 'Failed to save: ' + err.message });
     }
 });
 
@@ -220,6 +241,7 @@ app.put('/api/user/:username/kids', async (req, res) => {
         await user.save();
         res.json({ success: true });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -255,6 +277,7 @@ app.post('/api/user/:username/kids/:kidId/request-money', async (req, res) => {
         await user.save();
         res.json({ success: true });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -294,6 +317,7 @@ app.post('/api/user/:username/kids/:kidId/request-spend', async (req, res) => {
         await user.save();
         res.json({ success: true });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -404,6 +428,7 @@ app.post('/api/user/:username/approve/:approvalId', async (req, res) => {
         await user.save();
         res.json({ success: true });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -428,6 +453,7 @@ app.post('/api/user/:username/deny/:approvalId', async (req, res) => {
         await user.save();
         res.json({ success: true });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -468,6 +494,7 @@ app.post('/api/user/:username/kids/:kidId/transfer-to-kid', async (req, res) => 
         await user.save();
         res.json({ success: true });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -481,6 +508,7 @@ app.get('/api/user/:username/scheduled-payments', async (req, res) => {
         }
         res.json(user.scheduledPayments || []);
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -516,6 +544,7 @@ app.post('/api/user/:username/scheduled-payments', async (req, res) => {
         await user.save();
         res.json({ success: true, payment });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -535,6 +564,7 @@ app.put('/api/user/:username/scheduled-payments/:paymentId', async (req, res) =>
         await user.save();
         res.json({ success: true });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -553,11 +583,13 @@ app.delete('/api/user/:username/scheduled-payments/:paymentId', async (req, res)
         await user.save();
         res.json({ success: true });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
 
 async function processScheduledPayments() {
+    if (!mongoReady || mongoose.connection.readyState !== 1) return;
     try {
         const users = await User.find({});
         const now = new Date();
@@ -629,7 +661,6 @@ async function processScheduledPayments() {
 }
 
 setInterval(processScheduledPayments, 60 * 1000);
-processScheduledPayments();
 
 // Transfer
 app.post('/api/transfer', async (req, res) => {
@@ -680,6 +711,7 @@ app.post('/api/transfer', async (req, res) => {
         
         res.json({ success: true });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -696,6 +728,7 @@ app.post('/api/user/:username/change-password', async (req, res) => {
         await user.save();
         res.json({ success: true });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -714,6 +747,7 @@ app.post('/api/user/:username/change-username', async (req, res) => {
         await user.save();
         res.json({ success: true, newUsername });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -725,6 +759,7 @@ app.get('/api/user/:username/settings', async (req, res) => {
         if (!user) return res.status(404).json({ error: 'User not found' });
         res.json(user.settings || {});
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -737,6 +772,7 @@ app.put('/api/user/:username/settings', async (req, res) => {
         await user.save();
         res.json({ success: true });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -771,6 +807,7 @@ app.post('/api/forgot-password', async (req, res) => {
             res.json({ success: true, emailed: false, code });
         }
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -786,6 +823,7 @@ app.post('/api/verify-reset-code', async (req, res) => {
         if (user.resetCode !== code) return res.status(401).json({ error: 'Incorrect code' });
         res.json({ success: true });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -805,6 +843,7 @@ app.post('/api/reset-password', async (req, res) => {
         await user.save();
         res.json({ success: true });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -817,6 +856,7 @@ app.post('/api/forgot-username', async (req, res) => {
         if (!user) return res.status(404).json({ error: 'No account with that email' });
         res.json({ success: true, username: user.username });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -862,5 +902,4 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running at http://localhost:${PORT}`);
-    console.log(`Connected to MongoDB`);
 });
