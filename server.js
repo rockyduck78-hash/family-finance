@@ -71,53 +71,53 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: true },
     resetCode: { type: String, default: null },
     resetCodeExpiry: { type: Date, default: null },
-    transactions: [{ 
-        id: Number, 
-        description: String, 
-        amount: Number, 
-        type: String, 
-        category: String, 
-        date: String 
-    }],
-    kids: [{ 
-        id: Number, 
-        name: String, 
-        password: String, 
+    transactions: { type: [{ 
+        id: { type: Number },
+        description: { type: String },
+        amount: { type: Number },
+        type: { type: String },
+        category: { type: String },
+        date: { type: String }
+    }], default: [] },
+    kids: { type: [{ 
+        id: { type: Number },
+        name: { type: String },
+        password: { type: String },
         balance: { type: Number, default: 0 },
-        transactions: [{ 
-            id: Number, 
-            description: String, 
-            amount: Number, 
-            type: String, 
-            date: String 
-        }]
-    }],
-    pendingApprovals: [{ 
-        id: Number, 
-        kidId: Number, 
-        kidName: String, 
-        type: String, 
-        fromKidId: Number,
-        fromKidName: String,
-        toKidId: Number,
-        toKidName: String,
-        amount: Number, 
-        description: String, 
-        date: String 
-    }],
-    scheduledPayments: [{ 
-        id: Number, 
-        kidId: Number, 
-        kidName: String, 
-        amount: Number, 
-        description: String, 
-        frequency: String, 
-        dayOfWeek: Number, 
-        dayOfMonth: Number, 
-        lastPaid: String, 
+        transactions: { type: [{ 
+            id: { type: Number },
+            description: { type: String },
+            amount: { type: Number },
+            type: { type: String },
+            date: { type: String }
+        }], default: [] }
+    }], default: [] },
+    pendingApprovals: { type: [{ 
+        id: { type: Number },
+        kidId: { type: Number },
+        kidName: { type: String },
+        type: { type: String },
+        fromKidId: { type: Number },
+        fromKidName: { type: String },
+        toKidId: { type: Number },
+        toKidName: { type: String },
+        amount: { type: Number },
+        description: { type: String },
+        date: { type: String }
+    }], default: [] },
+    scheduledPayments: { type: [{ 
+        id: { type: Number },
+        kidId: { type: Number },
+        kidName: { type: String },
+        amount: { type: Number },
+        description: { type: String },
+        frequency: { type: String },
+        dayOfWeek: { type: Number },
+        dayOfMonth: { type: Number },
+        lastPaid: { type: String },
         active: { type: Boolean, default: true },
-        created: String 
-    }],
+        created: { type: String }
+    }], default: [] },
     settings: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: true });
 
