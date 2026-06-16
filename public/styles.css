@@ -1181,6 +1181,74 @@ body {
     color: var(--gray-400);
 }
 
+/* Preset Transfer Options */
+.counter-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    justify-content: center;
+    margin-top: 8px;
+}
+
+.btn-counter {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid var(--gray-300);
+    background: var(--white);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--gray-700);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    line-height: 1;
+}
+
+.btn-counter:hover {
+    border-color: var(--blue-500);
+    color: var(--blue-600);
+    background: var(--blue-50);
+}
+
+.btn-counter:active {
+    transform: scale(0.92);
+}
+
+.counter-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--gray-900);
+    min-width: 40px;
+    text-align: center;
+    font-family: 'SF Mono', 'Consolas', monospace;
+}
+
+.preset-panel {
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 18px;
+}
+
+.preset-breakdown {
+    font-size: 13px;
+    color: var(--gray-500);
+    text-align: center;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--gray-200);
+}
+
+.preset-flat {
+    text-align: center;
+    font-size: 18px;
+    color: var(--gray-700);
+}
+
 /* Network Info */
 
 
@@ -1392,6 +1460,32 @@ body.theme-dark .user-dropdown button:hover {
     background: #243049;
 }
 
+body.theme-dark .btn-counter {
+    background: #1a2035;
+    border-color: #374151;
+    color: #d1d5db;
+}
+
+body.theme-dark .btn-counter:hover {
+    border-color: var(--blue-500);
+    color: var(--blue-400);
+    background: #243049;
+}
+
+body.theme-dark .preset-panel {
+    background: #1a2035;
+    border-color: #2d3748;
+}
+
+body.theme-dark .preset-breakdown {
+    border-top-color: #2d3748;
+    color: #9ca3af;
+}
+
+body.theme-dark .preset-flat {
+    color: #d1d5db;
+}
+
 /* Blue Theme */
 body.theme-blue {
     --blue-600: #1e40af;
@@ -1457,6 +1551,32 @@ body.theme-blue .user-dropdown button {
 
 body.theme-blue .user-dropdown button:hover {
     background: #2d3f5e;
+}
+
+body.theme-blue .btn-counter {
+    background: #0f172a;
+    border-color: #475569;
+    color: #cbd5e1;
+}
+
+body.theme-blue .btn-counter:hover {
+    border-color: var(--blue-500);
+    color: var(--blue-400);
+    background: #1e3a5f;
+}
+
+body.theme-blue .preset-panel {
+    background: #0f172a;
+    border-color: #334155;
+}
+
+body.theme-blue .preset-breakdown {
+    border-top-color: #334155;
+    color: #94a3b8;
+}
+
+body.theme-blue .preset-flat {
+    color: #cbd5e1;
 }
 
 /* Responsive */

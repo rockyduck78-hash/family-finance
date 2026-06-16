@@ -58,6 +58,56 @@
                         <label>Recipient Username</label>
                         <input type="text" id="transfer-to" placeholder="Enter username" required>
                     </div>
+                    <div class="form-group">
+                        <label>Type</label>
+                        <select id="transfer-type" onchange="onTransferTypeChange()">
+                            <option value="custom">Custom Amount</option>
+                            <option value="firstmate">First Mate ($22)</option>
+                            <option value="videogames">Video Games</option>
+                            <option value="gym">Gym</option>
+                            <option value="dogwalk">Dog Walk</option>
+                        </select>
+                    </div>
+
+                    <div id="preset-options" style="display:none;">
+                        <div id="opt-videogames" class="preset-panel" style="display:none;">
+                            <div class="form-group">
+                                <label>Hours Played</label>
+                                <div class="counter-row">
+                                    <button type="button" class="btn-counter" onclick="adjustHours(-1)">-</button>
+                                    <span class="counter-value" id="hours-display">1</span>
+                                    <button type="button" class="btn-counter" onclick="adjustHours(1)">+</button>
+                                </div>
+                            </div>
+                            <div class="preset-breakdown" id="hours-breakdown"></div>
+                        </div>
+                        <div id="opt-gym" class="preset-panel" style="display:none;">
+                            <div class="form-group">
+                                <label>Machines Used</label>
+                                <div class="counter-row">
+                                    <button type="button" class="btn-counter" onclick="adjustMachines(-1)">-</button>
+                                    <span class="counter-value" id="machines-display">1</span>
+                                    <button type="button" class="btn-counter" onclick="adjustMachines(1)">+</button>
+                                </div>
+                            </div>
+                            <div class="preset-breakdown" id="machines-breakdown"></div>
+                        </div>
+                        <div id="opt-dogwalk" class="preset-panel" style="display:none;">
+                            <div class="form-group">
+                                <label>Number of Walks</label>
+                                <div class="counter-row">
+                                    <button type="button" class="btn-counter" onclick="adjustWalks(-1)">-</button>
+                                    <span class="counter-value" id="walks-display">1</span>
+                                    <button type="button" class="btn-counter" onclick="adjustWalks(1)">+</button>
+                                </div>
+                            </div>
+                            <div class="preset-breakdown" id="walks-breakdown"></div>
+                        </div>
+                        <div id="opt-firstmate" class="preset-panel" style="display:none;">
+                            <div class="preset-flat">Flat rate: <strong>$22.00</strong></div>
+                        </div>
+                    </div>
+
                     <div class="form-row">
                         <div class="form-group">
                             <label>Amount ($)</label>
@@ -90,6 +140,9 @@
         initUserMenu(user);
 
         let transactions = [];
+        let videoGameHours = 1;
+        let gymMachines = 1;
+        let dogWalks = 1;
 
         async function loadData() {
             const res = await fetch('/api/user/' + user);
@@ -100,6 +153,92 @@
 
         function fmt(n) {
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+        }
+
+        function calcVideoGameAmount(hours) {
+            if (hours <= 0) return 0;
+            if (hours === 1) return 4;
+            return 4 + (hours - 1) * 16;
+        }
+
+        function onTransferTypeChange() {
+            const type = document.getElementById('transfer-type').value;
+            const presetOptions = document.getElementById('preset-options');
+            const amountInput = document.getElementById('transfer-amount');
+            const noteInput = document.getElementById('transfer-note');
+
+            document.querySelectorAll('.preset-panel').forEach(p => p.style.display = 'none');
+
+            if (type === 'custom') {
+                presetOptions.style.display = 'none';
+                amountInput.readOnly = false;
+                amountInput.value = '';
+                noteInput.value = '';
+                return;
+            }
+
+            presetOptions.style.display = 'block';
+            amountInput.readOnly = true;
+
+            if (type === 'firstmate') {
+                document.getElementById('opt-firstmate').style.display = 'block';
+                amountInput.value = '22.00';
+                noteInput.value = 'First Mate';
+            } else if (type === 'videogames') {
+                document.getElementById('opt-videogames').style.display = 'block';
+                updateVideoGameDisplay();
+            } else if (type === 'gym') {
+                document.getElementById('opt-gym').style.display = 'block';
+                updateGymDisplay();
+            } else if (type === 'dogwalk') {
+                document.getElementById('opt-dogwalk').style.display = 'block';
+                updateDogWalkDisplay();
+            }
+        }
+
+        function updateVideoGameDisplay() {
+            document.getElementById('hours-display').textContent = videoGameHours;
+            const amount = calcVideoGameAmount(videoGameHours);
+            document.getElementById('transfer-amount').value = amount.toFixed(2);
+            let breakdown = '';
+            if (videoGameHours === 1) {
+                breakdown = '1st hour: $4.00';
+            } else {
+                breakdown = '1st hour: $4.00 + ' + (videoGameHours - 1) + ' extra hr' + (videoGameHours - 1 > 1 ? 's' : '') + ': $' + ((videoGameHours - 1) * 16).toFixed(2);
+            }
+            document.getElementById('hours-breakdown').textContent = breakdown;
+            document.getElementById('transfer-note').value = 'Video Games - ' + videoGameHours + ' hr' + (videoGameHours > 1 ? 's' : '');
+        }
+
+        function adjustHours(delta) {
+            videoGameHours = Math.max(1, videoGameHours + delta);
+            updateVideoGameDisplay();
+        }
+
+        function updateGymDisplay() {
+            document.getElementById('machines-display').textContent = gymMachines;
+            const amount = gymMachines * 4;
+            document.getElementById('transfer-amount').value = amount.toFixed(2);
+            document.getElementById('machines-breakdown').textContent = gymMachines + ' machine' + (gymMachines > 1 ? 's' : '') + ' x $4.00 = $' + amount.toFixed(2);
+            document.getElementById('transfer-note').value = 'Gym - ' + gymMachines + ' machine' + (gymMachines > 1 ? 's' : '');
+        }
+
+        function adjustMachines(delta) {
+            gymMachines = Math.max(1, gymMachines + delta);
+            updateGymDisplay();
+        }
+
+        function updateDogWalkDisplay() {
+            document.getElementById('walks-display').textContent = dogWalks;
+            const amount = dogWalks * 3;
+            document.getElementById('transfer-amount').value = amount.toFixed(2);
+            document.getElementById('walks-breakdown').textContent = dogWalks + ' walk' + (dogWalks > 1 ? 's' : '') + ' x $3.00 = $' + amount.toFixed(2);
+            document.getElementById('transfer-note').value = 'Dog Walk - ' + dogWalks + ' walk' + (dogWalks > 1 ? 's' : '');
+        }
+
+        function adjustWalks(delta) {
+            dogWalks = Math.max(1, dogWalks + delta);
+            updateDogWalkDisplay();
         }
 
         function renderTransfers() {
@@ -138,6 +277,12 @@
             if (data.error) return alert(data.error);
             alert('Sent $' + amount.toFixed(2) + ' to ' + to);
             e.target.reset();
+            document.getElementById('transfer-type').value = 'custom';
+            document.getElementById('preset-options').style.display = 'none';
+            document.getElementById('transfer-amount').readOnly = false;
+            videoGameHours = 1;
+            gymMachines = 1;
+            dogWalks = 1;
             loadData();
         });
 
