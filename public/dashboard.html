@@ -89,18 +89,22 @@
         let categoryChart = null;
 
         async function loadData() {
-            const res = await fetch('/api/user/' + user + '?t=' + Date.now());
-            const data = await res.json();
-            transactions = data.transactions || [];
-            updateSummary();
-            updateCharts();
+            try {
+                const res = await fetch('/api/user/' + user + '?t=' + Date.now());
+                const data = await res.json();
+                if (data.error) return;
+                transactions = data.transactions || [];
+                updateSummary();
+                updateCharts();
+            } catch (err) {
+                console.error('Failed to load dashboard data:', err);
+            }
         }
 
-        window.addEventListener('pageshow', () => {
-            if (incomeExpenseChart) { incomeExpenseChart.destroy(); incomeExpenseChart = null; }
-            if (categoryChart) { categoryChart.destroy(); categoryChart = null; }
-            loadData();
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) loadData();
         });
+        window.addEventListener('pageshow', loadData);
 
         function formatCurrency(amount) {
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);

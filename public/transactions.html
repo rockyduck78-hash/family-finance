@@ -133,12 +133,17 @@
         }
 
         async function loadData() {
-            const res = await fetch('/api/user/' + user);
-            const data = await res.json();
-            transactions = data.transactions || [];
-            pendingApprovals = data.pendingApprovals || [];
-            renderTransactions();
-            renderApprovals();
+            try {
+                const res = await fetch('/api/user/' + user + '?t=' + Date.now());
+                const data = await res.json();
+                if (data.error) return;
+                transactions = data.transactions || [];
+                pendingApprovals = data.pendingApprovals || [];
+                renderTransactions();
+                renderApprovals();
+            } catch (err) {
+                console.error('Failed to load data:', err);
+            }
         }
 
         function renderApprovals() {
@@ -187,9 +192,8 @@
                 list.innerHTML = '<div class="empty-state"><span class="icon">&#128221;</span><p>No transactions yet</p></div>';
                 return;
             }
-            list.innerHTML = transactions
-                .sort((a, b) => new Date(b.date) - new Date(a.date))
-                .map((t, i) => `
+            const sorted = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+            list.innerHTML = sorted.map(t => `
                     <div class="transaction-item">
                         <div class="transaction-left">
                             <div class="transaction-icon">${t.type === 'income' ? '&#8593;' : '&#8595;'}</div>
@@ -200,7 +204,7 @@
                         </div>
                         <div class="transaction-right">
                             <span class="transaction-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}</span>
-                            <button class="btn-ghost" onclick="deleteTransaction(${i})">&#10005;</button>
+                            <button class="btn-ghost" onclick="deleteTransaction(${t.id})">&#10005;</button>
                         </div>
                     </div>
                 `).join('');
@@ -209,33 +213,47 @@
         document.getElementById('transaction-form').addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            transactions.push({
+            const newTx = {
                 id: Date.now(),
                 description: document.getElementById('description').value,
                 amount: parseFloat(document.getElementById('amount').value),
                 type: document.getElementById('type').value,
                 category: document.getElementById('category').value,
                 date: new Date().toISOString()
-            });
+            };
 
-            await fetch('/api/user/' + user + '/transactions', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ transactions })
-            });
-
-            renderTransactions();
-            e.target.reset();
+            try {
+                const res = await fetch('/api/user/' + user + '/transactions', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transactions: [...transactions, newTx] })
+                });
+                const data = await res.json();
+                if (data.error) return alert(data.error);
+                transactions.push(newTx);
+                renderTransactions();
+                e.target.reset();
+            } catch (err) {
+                alert('Failed to save transaction');
+            }
         });
 
-        async function deleteTransaction(index) {
-            transactions.splice(index, 1);
-            await fetch('/api/user/' + user + '/transactions', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ transactions })
-            });
-            renderTransactions();
+        async function deleteTransaction(id) {
+            const tx = transactions.find(t => t.id === id);
+            if (!tx) return;
+            if (!confirm('Delete "' + tx.description + '"?')) return;
+            transactions = transactions.filter(t => t.id !== id);
+            try {
+                await fetch('/api/user/' + user + '/transactions', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transactions })
+                });
+                renderTransactions();
+            } catch (err) {
+                alert('Failed to delete');
+                loadData();
+            }
         }
 
     </script>
