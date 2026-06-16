@@ -89,12 +89,18 @@
         let categoryChart = null;
 
         async function loadData() {
-            const res = await fetch('/api/user/' + user);
+            const res = await fetch('/api/user/' + user + '?t=' + Date.now());
             const data = await res.json();
             transactions = data.transactions || [];
             updateSummary();
             updateCharts();
         }
+
+        window.addEventListener('pageshow', () => {
+            if (incomeExpenseChart) { incomeExpenseChart.destroy(); incomeExpenseChart = null; }
+            if (categoryChart) { categoryChart.destroy(); categoryChart = null; }
+            loadData();
+        });
 
         function formatCurrency(amount) {
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
