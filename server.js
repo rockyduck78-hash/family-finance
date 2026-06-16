@@ -24,7 +24,6 @@ mongoose.connect(MONGODB_URI || 'mongodb://localhost:27017/family-finance')
 const userSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    transactionPassword: { type: String, default: null },
     transactions: [{ 
         id: Number, 
         description: String, 
@@ -71,7 +70,8 @@ const userSchema = new mongoose.Schema({
         lastPaid: String, 
         active: { type: Boolean, default: true },
         created: String 
-    }]
+    }],
+    settings: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);
@@ -109,11 +109,11 @@ app.post('/api/register', async (req, res) => {
         await User.create({
             username,
             password,
-            transactionPassword: null,
             transactions: [],
             kids: [],
             pendingApprovals: [],
-            scheduledPayments: []
+            scheduledPayments: [],
+            settings: {}
         });
         
         res.json({ success: true });
@@ -140,45 +140,6 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// Transaction password
-app.post('/api/set-transaction-password', async (req, res) => {
-    try {
-        const { username, password } = req.body;
-        const user = await User.findOne({ username });
-        
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-        
-        user.transactionPassword = password;
-        await user.save();
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
-app.post('/api/verify-transaction-password', async (req, res) => {
-    try {
-        const { username, password } = req.body;
-        const user = await User.findOne({ username });
-        
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-        if (!user.transactionPassword) {
-            return res.json({ success: true });
-        }
-        if (user.transactionPassword !== password) {
-            return res.status(401).json({ error: 'Incorrect password' });
-        }
-        
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
 // User data
 app.get('/api/user/:username', async (req, res) => {
     try {
@@ -190,7 +151,7 @@ app.get('/api/user/:username', async (req, res) => {
             transactions: user.transactions || [],
             kids: user.kids || [],
             pendingApprovals: user.pendingApprovals || [],
-            hasTransactionPassword: !!user.transactionPassword
+            settings: user.settings || {}
         });
     } catch (err) {
         res.status(500).json({ error: 'Server error' });
@@ -681,6 +642,63 @@ app.post('/api/transfer', async (req, res) => {
         await sender.save();
         await recipient.save();
         
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Change password
+app.post('/api/user/:username/change-password', async (req, res) => {
+    try {
+        const { username } = req.params;
+        const { currentPassword, newPassword } = req.body;
+        const user = await User.findOne({ username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (user.password !== currentPassword) return res.status(401).json({ error: 'Incorrect current password' });
+        user.password = newPassword;
+        await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Change username
+app.post('/api/user/:username/change-username', async (req, res) => {
+    try {
+        const { username } = req.params;
+        const { newUsername, password } = req.body;
+        const user = await User.findOne({ username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (user.password !== password) return res.status(401).json({ error: 'Incorrect password' });
+        const exists = await User.findOne({ username: newUsername });
+        if (exists) return res.status(400).json({ error: 'Username already taken' });
+        user.username = newUsername;
+        await user.save();
+        res.json({ success: true, newUsername });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Settings (theme)
+app.get('/api/user/:username/settings', async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        res.json(user.settings || {});
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.put('/api/user/:username/settings', async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        user.settings = req.body;
+        await user.save();
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: 'Server error' });

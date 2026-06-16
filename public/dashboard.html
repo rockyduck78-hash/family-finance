@@ -21,11 +21,26 @@
                 <a href="/transfer"><span class="nav-icon">&#8644;</span> <span class="nav-label">Transfer</span></a>
             </div>
             <div class="topnav-right">
-                <div class="topnav-user">
-                    <div class="topnav-avatar" id="user-avatar"></div>
-                    <span class="topnav-username" id="user-display"></span>
+                <div class="topnav-user" id="user-menu">
+                    <button class="user-menu-btn" onclick="toggleUserMenu()">
+                        <div class="topnav-avatar" id="user-avatar"></div>
+                        <span class="topnav-username" id="user-display"></span>
+                        <span class="menu-arrow">&#9662;</span>
+                    </button>
+                    <div class="user-dropdown">
+                        <button onclick="showChangePassword()">&#128274; Change Password</button>
+                        <button onclick="showChangeUsername()">&#9998; Change Username</button>
+                        <div class="divider"></div>
+                        <div style="padding:8px 16px 4px;font-size:12px;font-weight:600;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.05em;">Theme</div>
+                        <div class="theme-options">
+                            <button class="theme-btn" data-theme="light" onclick="setTheme('light')"></button>
+                            <button class="theme-btn" data-theme="dark" onclick="setTheme('dark')"></button>
+                            <button class="theme-btn" data-theme="blue" onclick="setTheme('blue')"></button>
+                        </div>
+                        <div class="divider"></div>
+                        <button class="danger" onclick="logout()">&#10140; Sign Out</button>
+                    </div>
                 </div>
-                <button class="topnav-signout" onclick="logout()">Sign Out</button>
             </div>
         </nav>
 
@@ -63,11 +78,11 @@
         </main>
     </div>
 
+    <script src="/user-menu.js"></script>
     <script>
         const user = localStorage.getItem('currentUser');
         if (!user) window.location.href = '/';
-        document.getElementById('user-display').textContent = user;
-        document.getElementById('user-avatar').textContent = user[0].toUpperCase();
+        initUserMenu(user);
 
         let transactions = [];
         let incomeExpenseChart = null;
@@ -168,33 +183,34 @@
             }
         }
 
-        async function navigateTo(page) {
-            const pw = prompt('Enter your password to continue:');
-            if (pw === null) return;
-            try {
-                const res = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: user, password: pw })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    window.location.href = page;
-                } else {
-                    alert(data.error || 'Incorrect password');
-                }
-            } catch (e) {
-                alert('Failed to verify password');
-            }
-        }
-
-        function logout() {
-            localStorage.removeItem('currentUser');
-            sessionStorage.clear();
-            window.location.href = '/';
-        }
-
         loadData();
     </script>
+
+    <!-- Change Password Modal -->
+    <div class="modal-overlay" id="change-pw-modal">
+        <div class="modal">
+            <h3>Change Password</h3>
+            <div class="form-group"><label>Current Password</label><input type="password" id="pw-current" placeholder="Current password"></div>
+            <div class="form-group"><label>New Password</label><input type="password" id="pw-new" placeholder="New password"></div>
+            <div class="form-group"><label>Confirm New Password</label><input type="password" id="pw-confirm" placeholder="Confirm new password"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeChangePwModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitChangePw()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Username Modal -->
+    <div class="modal-overlay" id="change-un-modal">
+        <div class="modal">
+            <h3>Change Username</h3>
+            <div class="form-group"><label>New Username</label><input type="text" id="un-new" placeholder="New username"></div>
+            <div class="form-group"><label>Password (to confirm)</label><input type="password" id="un-password" placeholder="Enter password"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeChangeUnModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitChangeUn()">Save</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
