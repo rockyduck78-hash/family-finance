@@ -32,8 +32,18 @@ mongoose.connect(MONGODB_URI || 'mongodb://localhost:27017/family-finance')
     .then(() => console.log('Connected to MongoDB'))
     .catch(err => {
         console.error('MongoDB connection error:', err.message);
-        // Don't exit, try to continue anyway
     });
+
+mongoose.connection.on('disconnected', () => {
+    console.log('MongoDB disconnected, attempting reconnect...');
+    setTimeout(() => {
+        if (MONGODB_URI) {
+            mongoose.connect(MONGODB_URI).catch(err => {
+                console.error('MongoDB reconnect failed:', err.message);
+            });
+        }
+    }, 5000);
+});
 
 // Schemas
 const userSchema = new mongoose.Schema({
@@ -101,9 +111,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Check MongoDB connection before API calls
 app.use('/api', (req, res, next) => {
     if (mongoose.connection.readyState !== 1) {
+        console.error('MongoDB not connected, readyState:', mongoose.connection.readyState);
         return res.status(503).json({ 
-            error: 'Database not connected. Please set MONGODB_URI in Render environment variables.',
-            readyState: mongoose.connection.readyState
+            error: 'Database not connected. Retrying...'
         });
     }
     next();

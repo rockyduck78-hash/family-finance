@@ -90,7 +90,7 @@
 
         async function loadData() {
             try {
-                const res = await fetch('/api/user/' + user + '?t=' + Date.now());
+                const res = await fetch('/api/user/' + user);
                 const data = await res.json();
                 if (data.error) return;
                 transactions = data.transactions || [];

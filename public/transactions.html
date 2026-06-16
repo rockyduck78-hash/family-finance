@@ -134,9 +134,12 @@
 
         async function loadData() {
             try {
-                const res = await fetch('/api/user/' + user + '?t=' + Date.now());
+                const res = await fetch('/api/user/' + user);
                 const data = await res.json();
-                if (data.error) return;
+                if (data.error) {
+                    console.error('Load error:', data.error);
+                    return;
+                }
                 transactions = data.transactions || [];
                 pendingApprovals = data.pendingApprovals || [];
                 renderTransactions();
@@ -222,19 +225,29 @@
                 date: new Date().toISOString()
             };
 
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+
             try {
+                const allTx = [...transactions, newTx];
                 const res = await fetch('/api/user/' + user + '/transactions', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ transactions: [...transactions, newTx] })
+                    body: JSON.stringify({ transactions: allTx })
                 });
                 const data = await res.json();
-                if (data.error) return alert(data.error);
-                transactions.push(newTx);
-                renderTransactions();
-                e.target.reset();
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    await loadData();
+                    e.target.reset();
+                }
             } catch (err) {
                 alert('Failed to save transaction');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Add Transaction';
             }
         });
 
@@ -242,17 +255,22 @@
             const tx = transactions.find(t => t.id === id);
             if (!tx) return;
             if (!confirm('Delete "' + tx.description + '"?')) return;
-            transactions = transactions.filter(t => t.id !== id);
+            const remaining = transactions.filter(t => t.id !== id);
             try {
-                await fetch('/api/user/' + user + '/transactions', {
+                const res = await fetch('/api/user/' + user + '/transactions', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ transactions })
+                    body: JSON.stringify({ transactions: remaining })
                 });
-                renderTransactions();
+                const data = await res.json();
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    await loadData();
+                }
             } catch (err) {
                 alert('Failed to delete');
-                loadData();
+                await loadData();
             }
         }
 
