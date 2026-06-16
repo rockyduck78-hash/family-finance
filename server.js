@@ -2,10 +2,25 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const mongoose = require('mongoose');
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
+
+// SMTP config for sending reset emails (optional - falls back to showing code on screen)
+const transporter = process.env.SMTP_HOST ? nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+    }
+}) : null;
+
+const SMTP_FROM = process.env.SMTP_FROM || 'Family Finance <noreply@familyfinance.app>';
 
 if (!MONGODB_URI) {
     console.error('MONGODB_URI environment variable is not set!');
@@ -23,7 +38,10 @@ mongoose.connect(MONGODB_URI || 'mongodb://localhost:27017/family-finance')
 // Schemas
 const userSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
+    email: { type: String, default: null },
     password: { type: String, required: true },
+    resetCode: { type: String, default: null },
+    resetCodeExpiry: { type: Date, default: null },
     transactions: [{ 
         id: Number, 
         description: String, 
@@ -99,16 +117,24 @@ async function getUser(username) {
 // Auth
 app.post('/api/register', async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { username, password, email } = req.body;
         const existing = await User.findOne({ username });
         
         if (existing) {
             return res.status(400).json({ error: 'Username already exists' });
         }
+
+        if (email) {
+            const emailExists = await User.findOne({ email });
+            if (emailExists) {
+                return res.status(400).json({ error: 'Email already registered' });
+            }
+        }
         
         await User.create({
             username,
             password,
+            email: email || null,
             transactions: [],
             kids: [],
             pendingApprovals: [],
@@ -705,12 +731,93 @@ app.put('/api/user/:username/settings', async (req, res) => {
     }
 });
 
+// Forgot password - send reset code
+app.post('/api/forgot-password', async (req, res) => {
+    try {
+        const { email } = req.body;
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ error: 'No account with that email' });
+
+        const code = crypto.randomInt(100000, 999999).toString();
+        user.resetCode = code;
+        user.resetCodeExpiry = new Date(Date.now() + 15 * 60 * 1000);
+        await user.save();
+
+        if (transporter) {
+            try {
+                await transporter.sendMail({
+                    from: SMTP_FROM,
+                    to: email,
+                    subject: 'Family Finance - Password Reset Code',
+                    text: `Your reset code is: ${code}\nThis code expires in 15 minutes.`,
+                    html: `<p>Your password reset code is:</p><h2 style="letter-spacing:4px">${code}</h2><p>This code expires in 15 minutes.</p>`
+                });
+                res.json({ success: true, emailed: true });
+            } catch (err) {
+                console.error('Email send error:', err.message);
+                res.json({ success: true, emailed: false, code });
+            }
+        } else {
+            res.json({ success: true, emailed: false, code });
+        }
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Verify reset code
+app.post('/api/verify-reset-code', async (req, res) => {
+    try {
+        const { email, code } = req.body;
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!user.resetCode || !user.resetCodeExpiry) return res.status(400).json({ error: 'No reset code active' });
+        if (new Date() > user.resetCodeExpiry) return res.status(400).json({ error: 'Code expired' });
+        if (user.resetCode !== code) return res.status(401).json({ error: 'Incorrect code' });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Reset password
+app.post('/api/reset-password', async (req, res) => {
+    try {
+        const { email, code, newPassword } = req.body;
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!user.resetCode || !user.resetCodeExpiry) return res.status(400).json({ error: 'No reset code active' });
+        if (new Date() > user.resetCodeExpiry) return res.status(400).json({ error: 'Code expired' });
+        if (user.resetCode !== code) return res.status(401).json({ error: 'Incorrect code' });
+        user.password = newPassword;
+        user.resetCode = null;
+        user.resetCodeExpiry = null;
+        await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Forgot username - look up by email
+app.post('/api/forgot-username', async (req, res) => {
+    try {
+        const { email } = req.body;
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ error: 'No account with that email' });
+        res.json({ success: true, username: user.username });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Pages
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
 app.get('/transactions', (req, res) => res.sendFile(path.join(__dirname, 'public', 'transactions.html')));
 app.get('/kids', (req, res) => res.sendFile(path.join(__dirname, 'public', 'kids.html')));
 app.get('/transfer', (req, res) => res.sendFile(path.join(__dirname, 'public', 'transfer.html')));
+app.get('/forgot-password', (req, res) => res.sendFile(path.join(__dirname, 'public', 'forgot-password.html')));
 
 // Health check for Render
 app.get('/health', (req, res) => {
