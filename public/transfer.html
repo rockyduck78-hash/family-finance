@@ -30,6 +30,8 @@
                         <button onclick="showChangePassword()">&#128274; Change Password</button>
                         <button onclick="showChangeUsername()">&#9998; Change Username</button>
                         <div class="divider"></div>
+                        <button onclick="showCustomize()">&#9881; Customize</button>
+                        <div class="divider"></div>
                         <div style="padding:8px 16px 4px;font-size:12px;font-weight:600;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.05em;">Theme</div>
                         <div class="theme-options">
                             <button class="theme-btn" data-theme="light" onclick="setTheme('light')"></button>
@@ -312,6 +314,38 @@
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="closeChangeUnModal()">Cancel</button>
                 <button class="btn btn-primary" onclick="submitChangeUn()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customize Modal -->
+    <div class="modal-overlay" id="customize-modal">
+        <div class="modal modal-wide">
+            <h3>&#9881; Customize</h3>
+            <div class="customize-section">
+                <h4>Layout Density</h4>
+                <div class="customize-options">
+                    <button class="customize-option" data-group="density" data-value="compact" onclick="setCustomOption('density','compact',this)"><span class="opt-icon">&#9776;</span>Compact</button>
+                    <button class="customize-option" data-group="density" data-value="normal" onclick="setCustomOption('density','normal',this)"><span class="opt-icon">&#9783;</span>Normal</button>
+                    <button class="customize-option" data-group="density" data-value="comfortable" onclick="setCustomOption('density','comfortable',this)"><span class="opt-icon">&#9784;</span>Comfortable</button>
+                </div>
+            </div>
+            <div class="customize-section">
+                <h4>Stats Layout</h4>
+                <div class="customize-options">
+                    <button class="customize-option" data-group="statsLayout" data-value="grid" onclick="setCustomOption('statsLayout','grid',this)"><span class="opt-icon">&#9638;</span>Grid</button>
+                    <button class="customize-option" data-group="statsLayout" data-value="list" onclick="setCustomOption('statsLayout','list',this)"><span class="opt-icon">&#9776;</span>List</button>
+                </div>
+            </div>
+            <div class="customize-section">
+                <h4>Visible Sections</h4>
+                <div class="customize-options">
+                    <button class="customize-option toggle-opt" data-group="showStats" data-value="true" onclick="toggleSection('showStats',this)"><span class="opt-icon">&#10003;</span>Stats</button>
+                    <button class="customize-option toggle-opt" data-group="showCharts" data-value="true" onclick="toggleSection('showCharts',this)"><span class="opt-icon">&#10003;</span>Charts</button>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary btn-full" onclick="closeCustomizeModal()">Done</button>
             </div>
         </div>
     </div>

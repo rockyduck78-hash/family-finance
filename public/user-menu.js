@@ -2,6 +2,7 @@ function initUserMenu(username) {
     document.getElementById('user-display').textContent = username;
     document.getElementById('user-avatar').textContent = username[0].toUpperCase();
     loadTheme();
+    loadCustomization();
 }
 
 function toggleUserMenu() {
@@ -20,18 +21,110 @@ function setTheme(theme) {
     document.body.className = theme === 'light' ? '' : 'theme-' + theme;
     localStorage.setItem('ff-theme', theme);
     document.querySelectorAll('.theme-btn').forEach(b => b.classList.toggle('active', b.dataset.theme === theme));
-    const user = localStorage.getItem('currentUser');
-    if (user) fetch('/api/user/' + user + '/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ theme })
-    });
+    saveSetting('theme', theme);
 }
 
 function loadTheme() {
     const saved = localStorage.getItem('ff-theme') || 'light';
     document.body.className = saved === 'light' ? '' : 'theme-' + saved;
     document.querySelectorAll('.theme-btn').forEach(b => b.classList.toggle('active', b.dataset.theme === saved));
+}
+
+// Customization
+const defaultSettings = {
+    theme: 'light',
+    density: 'normal',
+    statsLayout: 'grid',
+    incomeExpensesChart: 'doughnut',
+    categoryChart: 'bar',
+    colorPalette: 'default',
+    showStats: true,
+    showCharts: true
+};
+
+const chartPalettes = {
+    default: ['#0060a9', '#1a73c7', '#4a9ae5', '#6bb5f0', '#94cdf7', '#b8e0fb', '#d1ebfd'],
+    ocean: ['#0077b6', '#00b4d8', '#90e0ef', '#48cae4', '#023e8a', '#0096c7', '#ade8f4'],
+    forest: ['#2d6a4f', '#40916c', '#52b788', '#74c69d', '#95d5b2', '#b7e4c7', '#d8f3dc'],
+    sunset: ['#e63946', '#f4845f', '#f7a072', '#ffb4a2', '#e5989b', '#b5838d', '#6d6875'],
+    royal: ['#7b2cbf', '#9d4edd', '#c77dff', '#e0aaff', '#3c096c', '#5a189a', '#240046'],
+    monochrome: ['#111827', '#1f2937', '#374151', '#4b5563', '#6b7280', '#9ca3af', '#d1d5db']
+};
+
+let userSettings = { ...defaultSettings };
+
+async function loadCustomization() {
+    const user = localStorage.getItem('currentUser');
+    if (!user) return;
+    try {
+        const res = await fetch('/api/user/' + user + '/settings');
+        const data = await res.json();
+        if (data && !data.error) {
+            userSettings = { ...defaultSettings, ...data };
+        }
+    } catch (e) {}
+    applyCustomization();
+}
+
+function applyCustomization() {
+    document.body.classList.remove('density-compact', 'density-comfortable');
+    if (userSettings.density === 'compact') document.body.classList.add('density-compact');
+    if (userSettings.density === 'comfortable') document.body.classList.add('density-comfortable');
+
+    document.body.classList.remove('stats-grid-view', 'stats-list-view');
+    document.body.classList.add(userSettings.statsLayout === 'list' ? 'stats-list-view' : 'stats-grid-view');
+
+    const statsSection = document.querySelector('.stats-grid');
+    const chartsSection = document.querySelector('.charts-grid');
+    if (statsSection) statsSection.style.display = userSettings.showStats ? '' : 'none';
+    if (chartsSection) chartsSection.style.display = userSettings.showCharts ? '' : 'none';
+
+    if (typeof rebuildCharts === 'function') rebuildCharts();
+}
+
+async function saveSetting(key, value) {
+    userSettings[key] = value;
+    const user = localStorage.getItem('currentUser');
+    if (user) {
+        fetch('/api/user/' + user + '/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userSettings)
+        });
+    }
+    applyCustomization();
+}
+
+function showCustomize() {
+    document.getElementById('user-menu').classList.remove('open');
+    const modal = document.getElementById('customize-modal');
+    modal.classList.add('active');
+
+    document.querySelectorAll('.customize-option').forEach(btn => {
+        const group = btn.dataset.group;
+        const value = btn.dataset.value;
+        if (group && value) {
+            btn.classList.toggle('active', String(userSettings[group]) === value);
+        }
+    });
+}
+
+function closeCustomizeModal() {
+    document.getElementById('customize-modal').classList.remove('active');
+}
+
+function setCustomOption(group, value, el) {
+    el.closest('.customize-options').querySelectorAll('.customize-option').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    saveSetting(group, value);
+}
+
+function toggleSection(group, el) {
+    const current = userSettings[group];
+    const next = !current;
+    el.classList.toggle('active', next);
+    el.dataset.value = String(next);
+    saveSetting(group, next);
 }
 
 // Change Password Modal
