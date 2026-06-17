@@ -125,11 +125,20 @@
     </div>
 
     <script>
-        if (localStorage.getItem('currentUser')) {
-            window.location.href = '/dashboard';
+        function goToDashboard(token) {
+            window.location.href = '/dashboard?token=' + encodeURIComponent(token);
+        }
+
+        const existingToken = localStorage.getItem('ff-token');
+        const existingUser = localStorage.getItem('currentUser');
+        if (existingToken && existingUser) {
+            fetch('/api/user/' + existingUser, { headers: { 'Authorization': 'Bearer ' + existingToken } })
+                .then(r => { if (r.ok) goToDashboard(existingToken); else { localStorage.removeItem('currentUser'); localStorage.removeItem('ff-token'); } })
+                .catch(() => { localStorage.removeItem('currentUser'); localStorage.removeItem('ff-token'); });
         }
 
         let pendingLogin = null;
+        let pendingTempToken = null;
 
         function showForm(type) {
             document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
@@ -153,13 +162,15 @@
 
             if (pendingLogin && code) {
                 const res = await fetch(`/api/user/${pendingLogin}/2fa/login`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + pendingTempToken },
                     body: JSON.stringify({ code })
                 });
                 const data = await res.json();
                 if (data.error) return alert(data.error);
                 localStorage.setItem('currentUser', pendingLogin);
-                window.location.href = '/dashboard';
+                localStorage.setItem('ff-token', data.token);
+                goToDashboard(data.token);
                 return;
             }
 
@@ -171,12 +182,14 @@
             if (data.error) return alert(data.error);
             if (data.requires2FA) {
                 pendingLogin = username;
+                pendingTempToken = data.token;
                 document.getElementById('login-2fa-group').style.display = 'block';
                 document.getElementById('login-2fa-code').focus();
                 return;
             }
             localStorage.setItem('currentUser', username);
-            window.location.href = '/dashboard';
+            localStorage.setItem('ff-token', data.token);
+            goToDashboard(data.token);
         });
 
         document.getElementById('register-form').addEventListener('submit', async (e) => {
@@ -192,7 +205,8 @@
             const data = await res.json();
             if (data.error) return alert(data.error);
             localStorage.setItem('currentUser', username);
-            window.location.href = '/dashboard';
+            localStorage.setItem('ff-token', data.token);
+            goToDashboard(data.token);
         });
     </script>
 </body>

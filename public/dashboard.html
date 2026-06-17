@@ -84,8 +84,8 @@
 
     <script src="/user-menu.js"></script>
     <script>
-        const user = localStorage.getItem('currentUser');
-        if (!user) window.location.href = '/';
+        if (!requireAuth()) { throw new Error('Not authenticated'); }
+        const user = getUser();
         initUserMenu(user);
 
         let transactions = [];
@@ -94,8 +94,7 @@
 
         async function loadData() {
             try {
-                const res = await fetch('/api/user/' + user);
-                const data = await res.json();
+                const data = await apiGet('/api/user/' + user);
                 if (data.error) return;
                 transactions = data.transactions || [];
                 updateSummary();
