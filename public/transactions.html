@@ -29,6 +29,7 @@
                     <div class="user-dropdown">
                         <button onclick="showChangePassword()">&#128274; Change Password</button>
                         <button onclick="showChangeUsername()">&#9998; Change Username</button>
+                        <button onclick="show2FASetup()">&#128272; 2FA Security</button>
                         <div class="divider"></div>
                         <button onclick="showCustomize()">&#9881; Customize</button>
                         <div class="divider"></div>
@@ -301,6 +302,28 @@
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="closeChangeUnModal()">Cancel</button>
                 <button class="btn btn-primary" onclick="submitChangeUn()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2FA Modal -->
+    <div class="modal-overlay" id="twofa-modal">
+        <div class="modal">
+            <h3>&#128272; Two-Factor Authentication</h3>
+            <div id="twofa-status"></div>
+            <div id="twofa-setup" style="display:none">
+                <p>Scan this QR code with your authenticator app:</p>
+                <div style="text-align:center;margin:16px 0"><img id="twofa-qr" src="" alt="QR Code" style="max-width:200px;border-radius:8px"></div>
+                <div class="form-group"><label>Enter code from app</label><input type="text" id="twofa-verify-code" placeholder="6-digit code" maxlength="6" pattern="[0-9]{6}"></div>
+            </div>
+            <div id="twofa-disable" style="display:none">
+                <p>Enter your password and current 2FA code to disable:</p>
+                <div class="form-group"><label>Password</label><input type="password" id="twofa-disable-pw" placeholder="Your password"></div>
+                <div class="form-group"><label>2FA Code</label><input type="text" id="twofa-disable-code" placeholder="6-digit code" maxlength="6" pattern="[0-9]{6}"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="close2FAModal()">Cancel</button>
+                <button class="btn btn-primary" id="twofa-action-btn" style="display:none"></button>
             </div>
         </div>
     </div>

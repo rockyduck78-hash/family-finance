@@ -194,3 +194,120 @@ function logout() {
     sessionStorage.clear();
     window.location.href = '/';
 }
+
+// 2FA Setup
+async function show2FASetup() {
+    document.getElementById('user-menu').classList.remove('open');
+    const user = localStorage.getItem('currentUser');
+    if (!user) return;
+
+    const modal = document.getElementById('twofa-modal');
+    const statusEl = document.getElementById('twofa-status');
+    const setupEl = document.getElementById('twofa-setup');
+    const disableEl = document.getElementById('twofa-disable');
+    const actionBtn = document.getElementById('twofa-action-btn');
+
+    setupEl.style.display = 'none';
+    disableEl.style.display = 'none';
+    actionBtn.style.display = 'none';
+    statusEl.innerHTML = '<p>Loading...</p>';
+    modal.classList.add('active');
+
+    try {
+        const res = await fetch('/api/user/' + user);
+        const data = await res.json();
+        if (data.error) {
+            statusEl.innerHTML = '<p style="color:red">' + data.error + '</p>';
+            return;
+        }
+
+        if (data.twoFactorEnabled) {
+            statusEl.innerHTML = '<p style="color:#22c55e;font-weight:600">2FA is currently enabled</p>';
+            disableEl.style.display = 'block';
+            actionBtn.textContent = 'Disable 2FA';
+            actionBtn.style.display = 'inline-block';
+            actionBtn.style.background = '#ef4444';
+            actionBtn.onclick = disable2FA;
+        } else {
+            statusEl.innerHTML = '<p style="color:#f59e0b;font-weight:600">2FA is not enabled</p>';
+            actionBtn.textContent = 'Enable 2FA';
+            actionBtn.style.display = 'inline-block';
+            actionBtn.onclick = start2FASetup;
+        }
+    } catch (e) {
+        statusEl.innerHTML = '<p style="color:red">Failed to load 2FA status</p>';
+    }
+}
+
+function close2FAModal() {
+    document.getElementById('twofa-modal').classList.remove('active');
+    document.getElementById('twofa-action-btn').style.background = '';
+}
+
+async function start2FASetup() {
+    const user = localStorage.getItem('currentUser');
+    const statusEl = document.getElementById('twofa-status');
+    const setupEl = document.getElementById('twofa-setup');
+    const actionBtn = document.getElementById('twofa-action-btn');
+
+    try {
+        const res = await fetch('/api/user/' + user + '/2fa/setup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (data.error) return alert(data.error);
+
+        statusEl.innerHTML = '<p style="color:#22c55e;font-weight:600">Scan QR code and enter code to enable</p>';
+        setupEl.style.display = 'block';
+        document.getElementById('twofa-qr').src = data.qrCode;
+        actionBtn.textContent = 'Verify & Enable';
+        actionBtn.style.display = 'inline-block';
+        actionBtn.onclick = verify2FASetup;
+    } catch (e) {
+        alert('Failed to start 2FA setup');
+    }
+}
+
+async function verify2FASetup() {
+    const user = localStorage.getItem('currentUser');
+    const code = document.getElementById('twofa-verify-code').value.trim();
+    if (!code || code.length !== 6) return alert('Enter a 6-digit code');
+
+    try {
+        const res = await fetch('/api/user/' + user + '/2fa/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code })
+        });
+        const data = await res.json();
+        if (data.error) return alert(data.error);
+        alert('2FA enabled successfully!');
+        close2FAModal();
+    } catch (e) {
+        alert('Failed to verify code');
+    }
+}
+
+async function disable2FA() {
+    const user = localStorage.getItem('currentUser');
+    const password = document.getElementById('twofa-disable-pw').value;
+    const code = document.getElementById('twofa-disable-code').value.trim();
+    if (!password) return alert('Enter your password');
+    if (!code || code.length !== 6) return alert('Enter a 6-digit code');
+
+    try {
+        const res = await fetch('/api/user/' + user + '/2fa/disable', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password, code })
+        });
+        const data = await res.json();
+        if (data.error) return alert(data.error);
+        alert('2FA has been disabled');
+        close2FAModal();
+    } catch (e) {
+        alert('Failed to disable 2FA');
+    }
+}

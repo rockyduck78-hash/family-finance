@@ -4,6 +4,8 @@ const path = require('path');
 const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
+const { generateSecret, generateSync, verifySync, generateURI } = require('otplib');
+const QRCode = require('qrcode');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -67,10 +69,12 @@ mongoose.connection.on('connected', () => {
 // Schemas
 const userSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
-    email: { type: String, default: null },
+    email: { type: String, required: true },
     password: { type: String, required: true },
     resetCode: { type: String, default: null },
     resetCodeExpiry: { type: Date, default: null },
+    twoFactorSecret: { type: String, default: null },
+    twoFactorEnabled: { type: Boolean, default: false },
     transactions: { type: [{ 
         id: { type: Number },
         description: { type: String },
@@ -144,23 +148,25 @@ async function getUser(username) {
 app.post('/api/register', async (req, res) => {
     try {
         const { username, password, email } = req.body;
+
+        if (!username || !password || !email) {
+            return res.status(400).json({ error: 'Username, email, and password are required' });
+        }
+
         const existing = await User.findOne({ username });
-        
         if (existing) {
             return res.status(400).json({ error: 'Username already exists' });
         }
 
-        if (email) {
-            const emailExists = await User.findOne({ email });
-            if (emailExists) {
-                return res.status(400).json({ error: 'Email already registered' });
-            }
+        const emailExists = await User.findOne({ email });
+        if (emailExists) {
+            return res.status(400).json({ error: 'Email already registered' });
         }
         
         await User.create({
             username,
             password,
-            email: email || null,
+            email,
             transactions: [],
             kids: [],
             pendingApprovals: [],
@@ -187,6 +193,10 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ error: 'Incorrect password' });
         }
         
+        if (user.twoFactorEnabled) {
+            return res.json({ success: true, requires2FA: true });
+        }
+        
         res.json({ success: true });
     } catch (err) {
         console.error(err.message);
@@ -206,7 +216,8 @@ app.get('/api/user/:username', async (req, res) => {
             kids: user.kids || [],
             pendingApprovals: user.pendingApprovals || [],
             scheduledPayments: user.scheduledPayments || [],
-            settings: user.settings || {}
+            settings: user.settings || {},
+            twoFactorEnabled: user.twoFactorEnabled || false
         });
     } catch (err) {
         console.error(err.message);
@@ -855,6 +866,99 @@ app.post('/api/forgot-username', async (req, res) => {
         const user = await User.findOne({ email });
         if (!user) return res.status(404).json({ error: 'No account with that email' });
         res.json({ success: true, username: user.username });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// 2FA Setup - Generate secret and QR code
+app.post('/api/user/:username/2fa/setup', async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (user.twoFactorEnabled) return res.status(400).json({ error: '2FA is already enabled' });
+
+        const secret = generateSecret();
+        const otpauth = generateURI({ secret, issuer: 'Family Finance', label: user.email });
+
+        user.twoFactorSecret = secret;
+        await user.save();
+
+        const qrCodeUrl = await QRCode.toDataURL(otpauth);
+
+        res.json({ success: true, secret, qrCode: qrCodeUrl });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// 2FA Verify - Verify code during setup
+app.post('/api/user/:username/2fa/verify', async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (user.twoFactorEnabled) return res.status(400).json({ error: '2FA is already enabled' });
+        if (!user.twoFactorSecret) return res.status(400).json({ error: 'No 2FA setup in progress' });
+
+        const { code } = req.body;
+        const result = verifySync({ token: code, secret: user.twoFactorSecret });
+        const isValid = result && result.valid;
+        if (!isValid) return res.status(401).json({ error: 'Invalid verification code' });
+
+        user.twoFactorEnabled = true;
+        await user.save();
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// 2FA Disable
+app.post('/api/user/:username/2fa/disable', async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!user.twoFactorEnabled) return res.status(400).json({ error: '2FA is not enabled' });
+
+        const { password, code } = req.body;
+        if (user.password !== password) return res.status(401).json({ error: 'Incorrect password' });
+
+        if (code) {
+            const result = verifySync({ token: code, secret: user.twoFactorSecret });
+            const isValid = result && result.valid;
+            if (!isValid) return res.status(401).json({ error: 'Invalid 2FA code' });
+        } else {
+            return res.status(400).json({ error: '2FA code required to disable' });
+        }
+
+        user.twoFactorEnabled = false;
+        user.twoFactorSecret = null;
+        await user.save();
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// 2FA Login - Verify code during login
+app.post('/api/user/:username/2fa/login', async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!user.twoFactorEnabled) return res.status(400).json({ error: '2FA is not enabled' });
+
+        const { code } = req.body;
+        const result = verifySync({ token: code, secret: user.twoFactorSecret });
+        const isValid = result && result.valid;
+        if (!isValid) return res.status(401).json({ error: 'Invalid 2FA code' });
+
+        res.json({ success: true });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Server error' });
