@@ -125,11 +125,14 @@
     </div>
 
     <script>
-        if (localStorage.getItem('currentUser')) {
+        const existingToken = localStorage.getItem('ff-token');
+        const existingUser = localStorage.getItem('currentUser');
+        if (existingToken && existingUser) {
             window.location.href = '/dashboard';
         }
 
         let pendingLogin = null;
+        let pendingTempToken = null;
 
         function showForm(type) {
             document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
@@ -153,12 +156,14 @@
 
             if (pendingLogin && code) {
                 const res = await fetch(`/api/user/${pendingLogin}/2fa/login`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + pendingTempToken },
                     body: JSON.stringify({ code })
                 });
                 const data = await res.json();
                 if (data.error) return alert(data.error);
                 localStorage.setItem('currentUser', pendingLogin);
+                localStorage.setItem('ff-token', data.token);
                 window.location.href = '/dashboard';
                 return;
             }
@@ -171,11 +176,13 @@
             if (data.error) return alert(data.error);
             if (data.requires2FA) {
                 pendingLogin = username;
+                pendingTempToken = data.token;
                 document.getElementById('login-2fa-group').style.display = 'block';
                 document.getElementById('login-2fa-code').focus();
                 return;
             }
             localStorage.setItem('currentUser', username);
+            localStorage.setItem('ff-token', data.token);
             window.location.href = '/dashboard';
         });
 
@@ -192,6 +199,7 @@
             const data = await res.json();
             if (data.error) return alert(data.error);
             localStorage.setItem('currentUser', username);
+            localStorage.setItem('ff-token', data.token);
             window.location.href = '/dashboard';
         });
     </script>

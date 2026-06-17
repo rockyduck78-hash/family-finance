@@ -57,8 +57,7 @@ async function loadCustomization() {
     const user = localStorage.getItem('currentUser');
     if (!user) return;
     try {
-        const res = await fetch('/api/user/' + user + '/settings');
-        const data = await res.json();
+        const data = await apiGet('/api/user/' + user + '/settings');
         if (data && !data.error) {
             userSettings = { ...defaultSettings, ...data };
         }
@@ -86,11 +85,7 @@ async function saveSetting(key, value) {
     userSettings[key] = value;
     const user = localStorage.getItem('currentUser');
     if (user) {
-        fetch('/api/user/' + user + '/settings', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(userSettings)
-        });
+        apiPut('/api/user/' + user + '/settings', userSettings);
     }
     applyCustomization();
 }
@@ -144,12 +139,7 @@ async function submitChangePw() {
     const confirm = document.getElementById('pw-confirm').value;
     if (!current || !newPw) return alert('Fill in all fields');
     if (newPw !== confirm) return alert('Passwords do not match');
-    const res = await fetch('/api/user/' + user + '/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword: current, newPassword: newPw })
-    });
-    const data = await res.json();
+    const data = await apiPost('/api/user/' + user + '/change-password', { currentPassword: current, newPassword: newPw });
     if (data.error) return alert(data.error);
     alert('Password changed!');
     closeChangePwModal();
@@ -173,14 +163,10 @@ async function submitChangeUn() {
     const newUn = document.getElementById('un-new').value.trim();
     const pw = document.getElementById('un-password').value;
     if (!newUn || !pw) return alert('Fill in all fields');
-    const res = await fetch('/api/user/' + user + '/change-username', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newUsername: newUn, password: pw })
-    });
-    const data = await res.json();
+    const data = await apiPost('/api/user/' + user + '/change-username', { newUsername: newUn, password: pw });
     if (data.error) return alert(data.error);
     localStorage.setItem('currentUser', data.newUsername);
+    if (data.token) localStorage.setItem('ff-token', data.token);
     document.getElementById('user-display').textContent = data.newUsername;
     document.getElementById('user-avatar').textContent = data.newUsername[0].toUpperCase();
     closeChangeUnModal();
@@ -190,8 +176,7 @@ async function submitChangeUn() {
 }
 
 function logout() {
-    localStorage.removeItem('currentUser');
-    sessionStorage.clear();
+    clearUser();
     window.location.href = '/';
 }
 
@@ -214,8 +199,7 @@ async function show2FASetup() {
     modal.classList.add('active');
 
     try {
-        const res = await fetch('/api/user/' + user);
-        const data = await res.json();
+        const data = await apiGet('/api/user/' + user);
         if (data.error) {
             statusEl.innerHTML = '<p style="color:red">' + data.error + '</p>';
             return;
@@ -251,12 +235,7 @@ async function start2FASetup() {
     const actionBtn = document.getElementById('twofa-action-btn');
 
     try {
-        const res = await fetch('/api/user/' + user + '/2fa/setup', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await res.json();
-
+        const data = await apiPost('/api/user/' + user + '/2fa/setup', {});
         if (data.error) return alert(data.error);
 
         statusEl.innerHTML = '<p style="color:#22c55e;font-weight:600">Scan QR code and enter code to enable</p>';
@@ -276,12 +255,7 @@ async function verify2FASetup() {
     if (!code || code.length !== 6) return alert('Enter a 6-digit code');
 
     try {
-        const res = await fetch('/api/user/' + user + '/2fa/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code })
-        });
-        const data = await res.json();
+        const data = await apiPost('/api/user/' + user + '/2fa/verify', { code });
         if (data.error) return alert(data.error);
         alert('2FA enabled successfully!');
         close2FAModal();
@@ -298,12 +272,7 @@ async function disable2FA() {
     if (!code || code.length !== 6) return alert('Enter a 6-digit code');
 
     try {
-        const res = await fetch('/api/user/' + user + '/2fa/disable', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password, code })
-        });
-        const data = await res.json();
+        const data = await apiPost('/api/user/' + user + '/2fa/disable', { password, code });
         if (data.error) return alert(data.error);
         alert('2FA has been disabled');
         close2FAModal();

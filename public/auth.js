@@ -4,20 +4,34 @@ function getUser() {
     return localStorage.getItem('currentUser');
 }
 
+function getToken() {
+    return localStorage.getItem('ff-token');
+}
+
 function setUser(username) {
     localStorage.setItem('currentUser', username);
 }
 
+function setToken(token) {
+    localStorage.setItem('ff-token', token);
+}
+
 function clearUser() {
     localStorage.removeItem('currentUser');
+    localStorage.removeItem('ff-token');
 }
 
 function requireAuth() {
-    if (!getUser()) {
+    if (!getUser() || !getToken()) {
         window.location.href = '/';
         return false;
     }
     return true;
+}
+
+function authHeaders() {
+    const token = getToken();
+    return token ? { 'Authorization': 'Bearer ' + token } : {};
 }
 
 function formatCurrency(amount) {
@@ -28,25 +42,37 @@ function formatCurrency(amount) {
 }
 
 async function apiGet(url) {
-    const res = await fetch(API + url);
+    const res = await fetch(API + url, { headers: authHeaders() });
+    if (res.status === 401) { clearUser(); window.location.href = '/'; return { error: 'Session expired' }; }
     return res.json();
 }
 
 async function apiPost(url, data) {
     const res = await fetch(API + url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(data)
     });
+    if (res.status === 401) { clearUser(); window.location.href = '/'; return { error: 'Session expired' }; }
     return res.json();
 }
 
 async function apiPut(url, data) {
     const res = await fetch(API + url, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(data)
     });
+    if (res.status === 401) { clearUser(); window.location.href = '/'; return { error: 'Session expired' }; }
+    return res.json();
+}
+
+async function apiDelete(url) {
+    const res = await fetch(API + url, {
+        method: 'DELETE',
+        headers: authHeaders()
+    });
+    if (res.status === 401) { clearUser(); window.location.href = '/'; return { error: 'Session expired' }; }
     return res.json();
 }
 

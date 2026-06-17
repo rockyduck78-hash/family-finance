@@ -6,10 +6,14 @@ const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const { generateSecret, generateSync, verifySync, generateURI } = require('otplib');
 const QRCode = require('qrcode');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
+const JWT_SECRET = process.env.JWT_SECRET || 'family-finance-secret-change-in-production';
+const JWT_EXPIRY = '24h';
 
 // SMTP config for sending reset emails (optional - falls back to showing code on screen)
 const transporter = process.env.SMTP_HOST ? nodemailer.createTransport({
@@ -139,6 +143,30 @@ app.use('/api', (req, res, next) => {
     next();
 });
 
+// JWT auth middleware - protects API routes (not login/register/forgot endpoints)
+function authMiddleware(req, res, next) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+    try {
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.authUser = decoded.username;
+        next();
+    } catch (err) {
+        return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+}
+
+// Verify the logged-in user matches the route username
+function ownerOnly(req, res, next) {
+    if (req.authUser !== req.params.username) {
+        return res.status(403).json({ error: 'Access denied' });
+    }
+    next();
+}
+
 // Helper functions
 async function getUser(username) {
     return await User.findOne({ username });
@@ -163,9 +191,11 @@ app.post('/api/register', async (req, res) => {
             return res.status(400).json({ error: 'Email already registered' });
         }
         
+        const hashedPassword = await bcrypt.hash(password, 10);
+
         await User.create({
             username,
-            password,
+            password: hashedPassword,
             email,
             transactions: [],
             kids: [],
@@ -174,7 +204,8 @@ app.post('/api/register', async (req, res) => {
             settings: {}
         });
         
-        res.json({ success: true });
+        const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+        res.json({ success: true, token });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Server error' });
@@ -189,15 +220,33 @@ app.post('/api/login', async (req, res) => {
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
-        if (user.password !== password) {
+
+        // Try bcrypt first, then plaintext fallback for existing users
+        let passwordMatch = false;
+        try {
+            passwordMatch = await bcrypt.compare(password, user.password);
+        } catch (e) {
+            // Not a bcrypt hash, try plaintext
+        }
+        if (!passwordMatch && user.password === password) {
+            // Plaintext match - transparently upgrade to bcrypt
+            passwordMatch = true;
+            user.password = await bcrypt.hash(password, 10);
+            await user.save();
+            console.log(`Migrated password to bcrypt for user: ${username}`);
+        }
+        
+        if (!passwordMatch) {
             return res.status(401).json({ error: 'Incorrect password' });
         }
         
         if (user.twoFactorEnabled) {
-            return res.json({ success: true, requires2FA: true });
+            const tempToken = jwt.sign({ username, temp: true }, JWT_SECRET, { expiresIn: '5m' });
+            return res.json({ success: true, requires2FA: true, token: tempToken });
         }
         
-        res.json({ success: true });
+        const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+        res.json({ success: true, token });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Server error' });
@@ -205,7 +254,7 @@ app.post('/api/login', async (req, res) => {
 });
 
 // User data
-app.get('/api/user/:username', async (req, res) => {
+app.get('/api/user/:username', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) {
@@ -226,7 +275,7 @@ app.get('/api/user/:username', async (req, res) => {
 });
 
 // Transactions
-app.put('/api/user/:username/transactions', async (req, res) => {
+app.put('/api/user/:username/transactions', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) {
@@ -242,7 +291,7 @@ app.put('/api/user/:username/transactions', async (req, res) => {
 });
 
 // Kids
-app.put('/api/user/:username/kids', async (req, res) => {
+app.put('/api/user/:username/kids', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) {
@@ -258,7 +307,7 @@ app.put('/api/user/:username/kids', async (req, res) => {
 });
 
 // Kid requests to add money (goes to pending)
-app.post('/api/user/:username/kids/:kidId/request-money', async (req, res) => {
+app.post('/api/user/:username/kids/:kidId/request-money', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const { username, kidId } = req.params;
         const { amount, description } = req.body;
@@ -294,7 +343,7 @@ app.post('/api/user/:username/kids/:kidId/request-money', async (req, res) => {
 });
 
 // Kid requests to spend money (goes to pending)
-app.post('/api/user/:username/kids/:kidId/request-spend', async (req, res) => {
+app.post('/api/user/:username/kids/:kidId/request-spend', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const { username, kidId } = req.params;
         const { amount, description } = req.body;
@@ -334,7 +383,7 @@ app.post('/api/user/:username/kids/:kidId/request-spend', async (req, res) => {
 });
 
 // Approve a pending request
-app.post('/api/user/:username/approve/:approvalId', async (req, res) => {
+app.post('/api/user/:username/approve/:approvalId', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const { username, approvalId } = req.params;
         const user = await User.findOne({ username });
@@ -445,7 +494,7 @@ app.post('/api/user/:username/approve/:approvalId', async (req, res) => {
 });
 
 // Deny a pending request
-app.post('/api/user/:username/deny/:approvalId', async (req, res) => {
+app.post('/api/user/:username/deny/:approvalId', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const { username, approvalId } = req.params;
         const user = await User.findOne({ username });
@@ -470,7 +519,7 @@ app.post('/api/user/:username/deny/:approvalId', async (req, res) => {
 });
 
 // Kid-to-kid transfer request
-app.post('/api/user/:username/kids/:kidId/transfer-to-kid', async (req, res) => {
+app.post('/api/user/:username/kids/:kidId/transfer-to-kid', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const { username, kidId } = req.params;
         const { targetKidId, amount, description } = req.body;
@@ -511,7 +560,7 @@ app.post('/api/user/:username/kids/:kidId/transfer-to-kid', async (req, res) => 
 });
 
 // Scheduled payments
-app.get('/api/user/:username/scheduled-payments', async (req, res) => {
+app.get('/api/user/:username/scheduled-payments', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) {
@@ -524,7 +573,7 @@ app.get('/api/user/:username/scheduled-payments', async (req, res) => {
     }
 });
 
-app.post('/api/user/:username/scheduled-payments', async (req, res) => {
+app.post('/api/user/:username/scheduled-payments', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const { username } = req.params;
         const { kidId, amount, description, frequency, dayOfWeek, dayOfMonth } = req.body;
@@ -560,7 +609,7 @@ app.post('/api/user/:username/scheduled-payments', async (req, res) => {
     }
 });
 
-app.put('/api/user/:username/scheduled-payments/:paymentId', async (req, res) => {
+app.put('/api/user/:username/scheduled-payments/:paymentId', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const { username, paymentId } = req.params;
         const { active } = req.body;
@@ -580,7 +629,7 @@ app.put('/api/user/:username/scheduled-payments/:paymentId', async (req, res) =>
     }
 });
 
-app.delete('/api/user/:username/scheduled-payments/:paymentId', async (req, res) => {
+app.delete('/api/user/:username/scheduled-payments/:paymentId', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const { username, paymentId } = req.params;
         const user = await User.findOne({ username });
@@ -674,7 +723,7 @@ async function processScheduledPayments() {
 setInterval(processScheduledPayments, 60 * 1000);
 
 // Transfer
-app.post('/api/transfer', async (req, res) => {
+app.post('/api/transfer', authMiddleware, async (req, res) => {
     try {
         const { from, to, amount, note } = req.body;
         
@@ -728,14 +777,19 @@ app.post('/api/transfer', async (req, res) => {
 });
 
 // Change password
-app.post('/api/user/:username/change-password', async (req, res) => {
+app.post('/api/user/:username/change-password', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const { username } = req.params;
         const { currentPassword, newPassword } = req.body;
         const user = await User.findOne({ username });
         if (!user) return res.status(404).json({ error: 'User not found' });
-        if (user.password !== currentPassword) return res.status(401).json({ error: 'Incorrect current password' });
-        user.password = newPassword;
+
+        let passwordMatch = false;
+        try { passwordMatch = await bcrypt.compare(currentPassword, user.password); } catch (e) {}
+        if (!passwordMatch && user.password === currentPassword) passwordMatch = true;
+        if (!passwordMatch) return res.status(401).json({ error: 'Incorrect current password' });
+
+        user.password = await bcrypt.hash(newPassword, 10);
         await user.save();
         res.json({ success: true });
     } catch (err) {
@@ -745,18 +799,25 @@ app.post('/api/user/:username/change-password', async (req, res) => {
 });
 
 // Change username
-app.post('/api/user/:username/change-username', async (req, res) => {
+app.post('/api/user/:username/change-username', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const { username } = req.params;
         const { newUsername, password } = req.body;
         const user = await User.findOne({ username });
         if (!user) return res.status(404).json({ error: 'User not found' });
-        if (user.password !== password) return res.status(401).json({ error: 'Incorrect password' });
+
+        let passwordMatch = false;
+        try { passwordMatch = await bcrypt.compare(password, user.password); } catch (e) {}
+        if (!passwordMatch && user.password === password) passwordMatch = true;
+        if (!passwordMatch) return res.status(401).json({ error: 'Incorrect password' });
+
         const exists = await User.findOne({ username: newUsername });
         if (exists) return res.status(400).json({ error: 'Username already taken' });
         user.username = newUsername;
         await user.save();
-        res.json({ success: true, newUsername });
+
+        const newToken = jwt.sign({ username: newUsername }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+        res.json({ success: true, newUsername, token: newToken });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Server error' });
@@ -764,7 +825,7 @@ app.post('/api/user/:username/change-username', async (req, res) => {
 });
 
 // Settings (theme)
-app.get('/api/user/:username/settings', async (req, res) => {
+app.get('/api/user/:username/settings', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
@@ -775,7 +836,7 @@ app.get('/api/user/:username/settings', async (req, res) => {
     }
 });
 
-app.put('/api/user/:username/settings', async (req, res) => {
+app.put('/api/user/:username/settings', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
@@ -848,7 +909,7 @@ app.post('/api/reset-password', async (req, res) => {
         if (!user.resetCode || !user.resetCodeExpiry) return res.status(400).json({ error: 'No reset code active' });
         if (new Date() > user.resetCodeExpiry) return res.status(400).json({ error: 'Code expired' });
         if (user.resetCode !== code) return res.status(401).json({ error: 'Incorrect code' });
-        user.password = newPassword;
+        user.password = await bcrypt.hash(newPassword, 10);
         user.resetCode = null;
         user.resetCodeExpiry = null;
         await user.save();
@@ -873,7 +934,7 @@ app.post('/api/forgot-username', async (req, res) => {
 });
 
 // 2FA Setup - Generate secret and QR code
-app.post('/api/user/:username/2fa/setup', async (req, res) => {
+app.post('/api/user/:username/2fa/setup', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
@@ -895,7 +956,7 @@ app.post('/api/user/:username/2fa/setup', async (req, res) => {
 });
 
 // 2FA Verify - Verify code during setup
-app.post('/api/user/:username/2fa/verify', async (req, res) => {
+app.post('/api/user/:username/2fa/verify', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
@@ -918,14 +979,17 @@ app.post('/api/user/:username/2fa/verify', async (req, res) => {
 });
 
 // 2FA Disable
-app.post('/api/user/:username/2fa/disable', async (req, res) => {
+app.post('/api/user/:username/2fa/disable', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
         if (!user.twoFactorEnabled) return res.status(400).json({ error: '2FA is not enabled' });
 
         const { password, code } = req.body;
-        if (user.password !== password) return res.status(401).json({ error: 'Incorrect password' });
+        let passwordMatch = false;
+        try { passwordMatch = await bcrypt.compare(password, user.password); } catch (e) {}
+        if (!passwordMatch && user.password === password) passwordMatch = true;
+        if (!passwordMatch) return res.status(401).json({ error: 'Incorrect password' });
 
         if (code) {
             const result = verifySync({ token: code, secret: user.twoFactorSecret });
@@ -946,9 +1010,24 @@ app.post('/api/user/:username/2fa/disable', async (req, res) => {
     }
 });
 
-// 2FA Login - Verify code during login
+// 2FA Login - Verify code during login (requires temp token)
 app.post('/api/user/:username/2fa/login', async (req, res) => {
     try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+        const token = authHeader.split(' ')[1];
+        let decoded;
+        try {
+            decoded = jwt.verify(token, JWT_SECRET);
+        } catch (e) {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+        if (!decoded.temp || decoded.username !== req.params.username) {
+            return res.status(403).json({ error: 'Invalid token for 2FA' });
+        }
+
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
         if (!user.twoFactorEnabled) return res.status(400).json({ error: '2FA is not enabled' });
@@ -958,7 +1037,8 @@ app.post('/api/user/:username/2fa/login', async (req, res) => {
         const isValid = result && result.valid;
         if (!isValid) return res.status(401).json({ error: 'Invalid 2FA code' });
 
-        res.json({ success: true });
+        const fullToken = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+        res.json({ success: true, token: fullToken });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Server error' });

@@ -120,6 +120,7 @@
         </main>
     </div>
 
+    <script src="/auth.js"></script>
     <script src="/user-menu.js"></script>
     <script>
         const user = localStorage.getItem('currentUser');
@@ -138,8 +139,7 @@
 
         async function loadData() {
             try {
-                const res = await fetch('/api/user/' + user);
-                const data = await res.json();
+                    const data = await apiGet('/api/user/' + user);
                 if (data.error) {
                     console.error('Load error:', data.error);
                     return;
@@ -180,12 +180,12 @@
         }
 
         async function approve(id) {
-            await fetch('/api/user/' + user + '/approve/' + id, { method: 'POST' });
+            await apiPost('/api/user/' + user + '/approve/' + id, {});
             loadData();
         }
 
         async function deny(id) {
-            await fetch('/api/user/' + user + '/deny/' + id, { method: 'POST' });
+            await apiPost('/api/user/' + user + '/deny/' + id, {});
             loadData();
         }
 
@@ -235,12 +235,7 @@
 
             try {
                 const allTx = [...transactions, newTx];
-                const res = await fetch('/api/user/' + user + '/transactions', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ transactions: allTx })
-                });
-                const data = await res.json();
+                const data = await apiPut('/api/user/' + user + '/transactions', { transactions: allTx });
                 if (data.error) {
                     alert(data.error);
                 } else {
@@ -261,12 +256,7 @@
             if (!confirm('Delete "' + tx.description + '"?')) return;
             const remaining = transactions.filter(t => t.id !== id);
             try {
-                const res = await fetch('/api/user/' + user + '/transactions', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ transactions: remaining })
-                });
-                const data = await res.json();
+                const data = await apiPut('/api/user/' + user + '/transactions', { transactions: remaining });
                 if (data.error) {
                     alert(data.error);
                 } else {
