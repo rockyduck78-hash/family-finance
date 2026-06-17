@@ -42,13 +42,23 @@ const defaultSettings = {
     showCharts: true
 };
 
+const chartPalettes = {
+    default: ['#0060a9', '#1a73c7', '#4a9ae5', '#6bb5f0', '#94cdf7', '#b8e0fb', '#d1ebfd'],
+    ocean: ['#0077b6', '#00b4d8', '#90e0ef', '#48cae4', '#023e8a', '#0096c7', '#ade8f4'],
+    forest: ['#2d6a4f', '#40916c', '#52b788', '#74c69d', '#95d5b2', '#b7e4c7', '#d8f3dc'],
+    sunset: ['#e63946', '#f4845f', '#f7a072', '#ffb4a2', '#e5989b', '#b5838d', '#6d6875'],
+    royal: ['#7b2cbf', '#9d4edd', '#c77dff', '#e0aaff', '#3c096c', '#5a189a', '#240046'],
+    monochrome: ['#111827', '#1f2937', '#374151', '#4b5563', '#6b7280', '#9ca3af', '#d1d5db']
+};
+
 let userSettings = { ...defaultSettings };
 
 async function loadCustomization() {
     const user = localStorage.getItem('currentUser');
     if (!user) return;
     try {
-        const data = await apiGet('/api/user/' + user + '/settings');
+        const res = await fetch('/api/user/' + user + '/settings');
+        const data = await res.json();
         if (data && !data.error) {
             userSettings = { ...defaultSettings, ...data };
         }
@@ -76,7 +86,11 @@ async function saveSetting(key, value) {
     userSettings[key] = value;
     const user = localStorage.getItem('currentUser');
     if (user) {
-        apiPut('/api/user/' + user + '/settings', userSettings);
+        fetch('/api/user/' + user + '/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userSettings)
+        });
     }
     applyCustomization();
 }
@@ -130,7 +144,12 @@ async function submitChangePw() {
     const confirm = document.getElementById('pw-confirm').value;
     if (!current || !newPw) return alert('Fill in all fields');
     if (newPw !== confirm) return alert('Passwords do not match');
-    const data = await apiPost('/api/user/' + user + '/change-password', { currentPassword: current, newPassword: newPw });
+    const res = await fetch('/api/user/' + user + '/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: current, newPassword: newPw })
+    });
+    const data = await res.json();
     if (data.error) return alert(data.error);
     alert('Password changed!');
     closeChangePwModal();
@@ -154,10 +173,14 @@ async function submitChangeUn() {
     const newUn = document.getElementById('un-new').value.trim();
     const pw = document.getElementById('un-password').value;
     if (!newUn || !pw) return alert('Fill in all fields');
-    const data = await apiPost('/api/user/' + user + '/change-username', { newUsername: newUn, password: pw });
+    const res = await fetch('/api/user/' + user + '/change-username', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newUsername: newUn, password: pw })
+    });
+    const data = await res.json();
     if (data.error) return alert(data.error);
     localStorage.setItem('currentUser', data.newUsername);
-    if (data.token) localStorage.setItem('ff-token', data.token);
     document.getElementById('user-display').textContent = data.newUsername;
     document.getElementById('user-avatar').textContent = data.newUsername[0].toUpperCase();
     closeChangeUnModal();
@@ -167,7 +190,8 @@ async function submitChangeUn() {
 }
 
 function logout() {
-    clearUser();
+    localStorage.removeItem('currentUser');
+    sessionStorage.clear();
     window.location.href = '/';
 }
 
@@ -190,7 +214,8 @@ async function show2FASetup() {
     modal.classList.add('active');
 
     try {
-        const data = await apiGet('/api/user/' + user);
+        const res = await fetch('/api/user/' + user);
+        const data = await res.json();
         if (data.error) {
             statusEl.innerHTML = '<p style="color:red">' + data.error + '</p>';
             return;
@@ -226,7 +251,12 @@ async function start2FASetup() {
     const actionBtn = document.getElementById('twofa-action-btn');
 
     try {
-        const data = await apiPost('/api/user/' + user + '/2fa/setup', {});
+        const res = await fetch('/api/user/' + user + '/2fa/setup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+
         if (data.error) return alert(data.error);
 
         statusEl.innerHTML = '<p style="color:#22c55e;font-weight:600">Scan QR code and enter code to enable</p>';
@@ -246,7 +276,12 @@ async function verify2FASetup() {
     if (!code || code.length !== 6) return alert('Enter a 6-digit code');
 
     try {
-        const data = await apiPost('/api/user/' + user + '/2fa/verify', { code });
+        const res = await fetch('/api/user/' + user + '/2fa/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code })
+        });
+        const data = await res.json();
         if (data.error) return alert(data.error);
         alert('2FA enabled successfully!');
         close2FAModal();
@@ -263,7 +298,12 @@ async function disable2FA() {
     if (!code || code.length !== 6) return alert('Enter a 6-digit code');
 
     try {
-        const data = await apiPost('/api/user/' + user + '/2fa/disable', { password, code });
+        const res = await fetch('/api/user/' + user + '/2fa/disable', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password, code })
+        });
+        const data = await res.json();
         if (data.error) return alert(data.error);
         alert('2FA has been disabled');
         close2FAModal();

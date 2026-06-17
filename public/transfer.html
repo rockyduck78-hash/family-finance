@@ -139,8 +139,8 @@
 
     <script src="/user-menu.js"></script>
     <script>
-        if (!requireAuth()) { throw new Error('Not authenticated'); }
-        const user = getUser();
+        const user = localStorage.getItem('currentUser');
+        if (!user) window.location.href = '/';
         initUserMenu(user);
 
         let transactions = [];
@@ -149,7 +149,8 @@
         let dogWalks = 1;
 
         async function loadData() {
-            const data = await apiGet('/api/user/' + user);
+            const res = await fetch('/api/user/' + user);
+            const data = await res.json();
             transactions = data.transactions || [];
             renderTransfers();
         }
@@ -271,7 +272,12 @@
             const amount = parseFloat(document.getElementById('transfer-amount').value);
             const note = document.getElementById('transfer-note').value.trim();
             if (to === user) return alert("Can't send to yourself");
-            const data = await apiPost('/api/transfer', { from: user, to, amount, note });
+            const res = await fetch('/api/transfer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ from: user, to, amount, note })
+            });
+            const data = await res.json();
             if (data.error) return alert(data.error);
             alert('Sent $' + amount.toFixed(2) + ' to ' + to);
             e.target.reset();

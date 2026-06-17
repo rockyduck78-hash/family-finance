@@ -122,8 +122,8 @@
 
     <script src="/user-menu.js"></script>
     <script>
-        if (!requireAuth()) { throw new Error('Not authenticated'); }
-        const user = getUser();
+        const user = localStorage.getItem('currentUser');
+        if (!user) window.location.href = '/';
         initUserMenu(user);
 
         let transactions = [];
@@ -138,7 +138,8 @@
 
         async function loadData() {
             try {
-                const data = await apiGet('/api/user/' + user);
+                const res = await fetch('/api/user/' + user);
+                const data = await res.json();
                 if (data.error) {
                     console.error('Load error:', data.error);
                     return;
@@ -179,12 +180,12 @@
         }
 
         async function approve(id) {
-            await apiPost('/api/user/' + user + '/approve/' + id, {});
+            await fetch('/api/user/' + user + '/approve/' + id, { method: 'POST' });
             loadData();
         }
 
         async function deny(id) {
-            await apiPost('/api/user/' + user + '/deny/' + id, {});
+            await fetch('/api/user/' + user + '/deny/' + id, { method: 'POST' });
             loadData();
         }
 
@@ -234,7 +235,12 @@
 
             try {
                 const allTx = [...transactions, newTx];
-                const data = await apiPut('/api/user/' + user + '/transactions', { transactions: allTx });
+                const res = await fetch('/api/user/' + user + '/transactions', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transactions: allTx })
+                });
+                const data = await res.json();
                 if (data.error) {
                     alert(data.error);
                 } else {
@@ -255,7 +261,12 @@
             if (!confirm('Delete "' + tx.description + '"?')) return;
             const remaining = transactions.filter(t => t.id !== id);
             try {
-                const data = await apiPut('/api/user/' + user + '/transactions', { transactions: remaining });
+                const res = await fetch('/api/user/' + user + '/transactions', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transactions: remaining })
+                });
+                const data = await res.json();
                 if (data.error) {
                     alert(data.error);
                 } else {

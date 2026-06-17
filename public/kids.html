@@ -172,15 +172,16 @@
 
     <script src="/user-menu.js"></script>
     <script>
-        if (!requireAuth()) { throw new Error('Not authenticated'); }
-        const user = getUser();
+        const user = localStorage.getItem('currentUser');
+        if (!user) window.location.href = '/';
         initUserMenu(user);
 
         let kids = [], kidCharts = {}, unlockedKids = new Set(), scheduledPayments = [];
         let currentKidIndex = null, pendingAction = null;
 
         async function loadData() {
-            const data = await apiGet('/api/user/' + user);
+            const res = await fetch('/api/user/' + user);
+            const data = await res.json();
             kids = data.kids || [];
             renderKids();
             setTimeout(renderKidCharts, 100);
@@ -188,11 +189,16 @@
         }
 
         async function saveKids() {
-            await apiPut('/api/user/' + user + '/kids', { kids });
+            await fetch('/api/user/' + user + '/kids', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ kids })
+            });
         }
 
         async function loadScheduled() {
-            scheduledPayments = await apiGet('/api/user/' + user + '/scheduled-payments');
+            const res = await fetch('/api/user/' + user + '/scheduled-payments');
+            scheduledPayments = await res.json();
             renderScheduled();
         }
 
@@ -374,7 +380,12 @@
             if (!d) return;
             const a = parseFloat(prompt('Amount:'));
             if (isNaN(a) || a <= 0) return alert('Invalid');
-            const data = await apiPost('/api/user/' + user + '/kids/' + kids[i].id + '/request-money', { amount: a, description: d });
+            const r = await fetch('/api/user/' + user + '/kids/' + kids[i].id + '/request-money', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount: a, description: d })
+            });
+            const data = await r.json();
             if (data.error) return alert(data.error);
             alert('Request sent! Approve in Transactions tab.');
         }
@@ -385,7 +396,12 @@
             const a = parseFloat(prompt('Amount:'));
             if (isNaN(a) || a <= 0) return alert('Invalid');
             if (a > kids[i].balance) return alert('Insufficient balance');
-            const data = await apiPost('/api/user/' + user + '/kids/' + kids[i].id + '/request-spend', { amount: a, description: d });
+            const r = await fetch('/api/user/' + user + '/kids/' + kids[i].id + '/request-spend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount: a, description: d })
+            });
+            const data = await r.json();
             if (data.error) return alert(data.error);
             alert('Request sent! Approve in Transactions tab.');
         }
@@ -416,9 +432,12 @@
             if (fromIdx === toIdx) return alert('Select different kids');
             if (isNaN(amount) || amount <= 0) return alert('Invalid amount');
             if (amount > kids[fromIdx].balance) return alert('Insufficient balance');
-            const data = await apiPost('/api/user/' + user + '/kids/' + kids[fromIdx].id + '/transfer-to-kid', {
-                targetKidId: kids[toIdx].id, amount, description: note || (kids[fromIdx].name + ' to ' + kids[toIdx].name)
+            const r = await fetch('/api/user/' + user + '/kids/' + kids[fromIdx].id + '/transfer-to-kid', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetKidId: kids[toIdx].id, amount, description: note || (kids[fromIdx].name + ' to ' + kids[toIdx].name) })
             });
+            const data = await r.json();
             if (data.error) return alert(data.error);
             closeTransferModal();
             alert('Transfer request sent! Approve in Transactions tab.');
@@ -454,22 +473,29 @@
             const dow = document.getElementById('scheduled-dow').value;
             const dom = document.getElementById('scheduled-dom').value;
             if (isNaN(amount) || amount <= 0) return alert('Invalid amount');
-            const data = await apiPost('/api/user/' + user + '/scheduled-payments', {
-                kidId, amount, description: desc, frequency: freq, dayOfWeek: dow, dayOfMonth: dom
+            const r = await fetch('/api/user/' + user + '/scheduled-payments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ kidId, amount, description: desc, frequency: freq, dayOfWeek: dow, dayOfMonth: dom })
             });
+            const data = await r.json();
             if (data.error) return alert(data.error);
             closeScheduledModal();
             await loadScheduled();
         }
 
         async function toggleScheduled(id, active) {
-            await apiPut('/api/user/' + user + '/scheduled-payments/' + id, { active });
+            await fetch('/api/user/' + user + '/scheduled-payments/' + id, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ active })
+            });
             await loadScheduled();
         }
 
         async function deleteScheduled(id) {
             if (!confirm('Delete this scheduled payment?')) return;
-            await apiDelete('/api/user/' + user + '/scheduled-payments/' + id);
+            await fetch('/api/user/' + user + '/scheduled-payments/' + id, { method: 'DELETE' });
             await loadScheduled();
         }
 

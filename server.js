@@ -4,40 +4,40 @@ const path = require('path');
 const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const { generateSecret, generateSync, verifySync, generateURI } = require('otplib');
 const QRCode = require('qrcode');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
-const JWT_EXPIRY = '24h';
 
-if (!process.env.JWT_SECRET) {
-    console.warn('WARNING: Using random JWT_SECRET. Set JWT_SECRET env var for persistence across restarts.');
-}
-
-// SMTP config
+// SMTP config for sending reset emails (optional - falls back to showing code on screen)
 const transporter = process.env.SMTP_HOST ? nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT || '587'),
     secure: process.env.SMTP_SECURE === 'true',
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+    }
 }) : null;
+
 const SMTP_FROM = process.env.SMTP_FROM || 'Family Finance <noreply@familyfinance.app>';
 
 if (!MONGODB_URI) {
     console.error('MONGODB_URI environment variable is not set!');
+    console.error('Please add MONGODB_URI to your Render environment variables.');
 }
 
-// Connect to MongoDB
+// Connect to MongoDB with retry
 let mongoReady = false;
 
 async function connectMongo() {
     try {
-        if (!MONGODB_URI) return;
+        if (!MONGODB_URI) {
+            console.error('MONGODB_URI not set!');
+            return;
+        }
         await mongoose.connect(MONGODB_URI, {
             serverSelectionTimeoutMS: 5000,
             heartbeatFrequencyMS: 30000,
@@ -62,7 +62,7 @@ mongoose.connection.on('disconnected', () => {
 
 mongoose.connection.on('connected', () => {
     mongoReady = true;
-    console.log('MongoDB connected');
+    console.log('MongoDB connected event fired');
     processScheduledPayments();
 });
 
@@ -75,7 +75,7 @@ const userSchema = new mongoose.Schema({
     resetCodeExpiry: { type: Date, default: null },
     twoFactorSecret: { type: String, default: null },
     twoFactorEnabled: { type: Boolean, default: false },
-    transactions: { type: [{
+    transactions: { type: [{ 
         id: { type: Number },
         description: { type: String },
         amount: { type: Number },
@@ -83,12 +83,12 @@ const userSchema = new mongoose.Schema({
         category: { type: String },
         date: { type: String }
     }], default: [] },
-    kids: { type: [{
+    kids: { type: [{ 
         id: { type: Number },
         name: { type: String },
         password: { type: String },
         balance: { type: Number, default: 0 },
-        transactions: { type: [{
+        transactions: { type: [{ 
             id: { type: Number },
             description: { type: String },
             amount: { type: Number },
@@ -96,7 +96,7 @@ const userSchema = new mongoose.Schema({
             date: { type: String }
         }], default: [] }
     }], default: [] },
-    pendingApprovals: { type: [{
+    pendingApprovals: { type: [{ 
         id: { type: Number },
         kidId: { type: Number },
         kidName: { type: String },
@@ -109,7 +109,7 @@ const userSchema = new mongoose.Schema({
         description: { type: String },
         date: { type: String }
     }], default: [] },
-    scheduledPayments: { type: [{
+    scheduledPayments: { type: [{ 
         id: { type: Number },
         kidId: { type: Number },
         kidName: { type: String },
@@ -129,11 +129,9 @@ const User = mongoose.model('User', userSchema);
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Serve static files BUT without auto-index for protected pages
-app.use(express.static(path.join(__dirname, 'public'), { index: false }));
-
-// Log MongoDB state for API calls
+// Log MongoDB connection state for API calls
 app.use('/api', (req, res, next) => {
     if (!mongoReady && mongoose.connection.readyState !== 1) {
         console.error('API request while MongoDB not connected:', req.method, req.path);
@@ -141,52 +139,33 @@ app.use('/api', (req, res, next) => {
     next();
 });
 
-// JWT auth middleware for API routes
-function authMiddleware(req, res, next) {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Authentication required' });
-    }
-    try {
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, JWT_SECRET);
-        req.authUser = decoded.username;
-        next();
-    } catch (err) {
-        return res.status(401).json({ error: 'Invalid or expired token' });
-    }
+// Helper functions
+async function getUser(username) {
+    return await User.findOne({ username });
 }
 
-// Verify the authenticated user matches the route username
-function ownerOnly(req, res, next) {
-    if (req.authUser !== req.params.username) {
-        return res.status(403).json({ error: 'Access denied' });
-    }
-    next();
-}
-
-// Auth - register
+// Auth
 app.post('/api/register', async (req, res) => {
     try {
         const { username, password, email } = req.body;
+
         if (!username || !password || !email) {
             return res.status(400).json({ error: 'Username, email, and password are required' });
         }
-        if (password.length < 6) {
-            return res.status(400).json({ error: 'Password must be at least 6 characters' });
-        }
 
         const existing = await User.findOne({ username });
-        if (existing) return res.status(400).json({ error: 'Username already exists' });
+        if (existing) {
+            return res.status(400).json({ error: 'Username already exists' });
+        }
 
         const emailExists = await User.findOne({ email });
-        if (emailExists) return res.status(400).json({ error: 'Email already registered' });
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        const user = await User.create({
+        if (emailExists) {
+            return res.status(400).json({ error: 'Email already registered' });
+        }
+        
+        await User.create({
             username,
-            password: hashedPassword,
+            password,
             email,
             transactions: [],
             kids: [],
@@ -194,78 +173,44 @@ app.post('/api/register', async (req, res) => {
             scheduledPayments: [],
             settings: {}
         });
-
-        const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
-        res.json({ success: true, token });
+        
+        res.json({ success: true });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
 
-// Auth - login
 app.post('/api/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         const user = await User.findOne({ username });
-        if (!user) return res.status(404).json({ error: 'User not found' });
-
-        const validPassword = await bcrypt.compare(password, user.password);
-        if (!validPassword) return res.status(401).json({ error: 'Incorrect password' });
-
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        if (user.password !== password) {
+            return res.status(401).json({ error: 'Incorrect password' });
+        }
+        
         if (user.twoFactorEnabled) {
-            const tempToken = jwt.sign({ username, temp: true }, JWT_SECRET, { expiresIn: '5m' });
-            return res.json({ success: true, requires2FA: true, token: tempToken });
+            return res.json({ success: true, requires2FA: true });
         }
-
-        const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
-        res.json({ success: true, token });
+        
+        res.json({ success: true });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
 
-// 2FA Login - requires temp token
-app.post('/api/user/:username/2fa/login', async (req, res) => {
-    try {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ error: 'Authentication required' });
-        }
-        const token = authHeader.split(' ')[1];
-        let decoded;
-        try {
-            decoded = jwt.verify(token, JWT_SECRET);
-        } catch (e) {
-            return res.status(401).json({ error: 'Invalid or expired token' });
-        }
-        if (!decoded.temp || decoded.username !== req.params.username) {
-            return res.status(403).json({ error: 'Invalid token for 2FA' });
-        }
-
-        const user = await User.findOne({ username: req.params.username });
-        if (!user) return res.status(404).json({ error: 'User not found' });
-        if (!user.twoFactorEnabled) return res.status(400).json({ error: '2FA is not enabled' });
-
-        const { code } = req.body;
-        const result = verifySync({ token: code, secret: user.twoFactorSecret });
-        const isValid = result && result.valid;
-        if (!isValid) return res.status(401).json({ error: 'Invalid 2FA code' });
-
-        const fullToken = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
-        res.json({ success: true, token: fullToken });
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
-// User data (requires auth)
-app.get('/api/user/:username', authMiddleware, ownerOnly, async (req, res) => {
+// User data
+app.get('/api/user/:username', async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
-        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
         res.json({
             transactions: user.transactions || [],
             kids: user.kids || [],
@@ -281,10 +226,12 @@ app.get('/api/user/:username', authMiddleware, ownerOnly, async (req, res) => {
 });
 
 // Transactions
-app.put('/api/user/:username/transactions', authMiddleware, ownerOnly, async (req, res) => {
+app.put('/api/user/:username/transactions', async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
-        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
         user.transactions = req.body.transactions;
         await user.save();
         res.json({ success: true });
@@ -295,10 +242,12 @@ app.put('/api/user/:username/transactions', authMiddleware, ownerOnly, async (re
 });
 
 // Kids
-app.put('/api/user/:username/kids', authMiddleware, ownerOnly, async (req, res) => {
+app.put('/api/user/:username/kids', async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
-        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
         user.kids = req.body.kids;
         await user.save();
         res.json({ success: true });
@@ -308,18 +257,24 @@ app.put('/api/user/:username/kids', authMiddleware, ownerOnly, async (req, res) 
     }
 });
 
-// Kid requests to add money
-app.post('/api/user/:username/kids/:kidId/request-money', authMiddleware, ownerOnly, async (req, res) => {
+// Kid requests to add money (goes to pending)
+app.post('/api/user/:username/kids/:kidId/request-money', async (req, res) => {
     try {
         const { username, kidId } = req.params;
         const { amount, description } = req.body;
         const user = await User.findOne({ username });
-        if (!user) return res.status(404).json({ error: 'User not found' });
-
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
         const kid = user.kids.find(k => k.id === parseInt(kidId));
-        if (!kid) return res.status(404).json({ error: 'Kid not found' });
-
+        if (!kid) {
+            return res.status(404).json({ error: 'Kid not found' });
+        }
+        
         if (!user.pendingApprovals) user.pendingApprovals = [];
+        
         user.pendingApprovals.push({
             id: Date.now(),
             kidId: kid.id,
@@ -329,7 +284,7 @@ app.post('/api/user/:username/kids/:kidId/request-money', authMiddleware, ownerO
             description: description,
             date: new Date().toISOString()
         });
-
+        
         await user.save();
         res.json({ success: true });
     } catch (err) {
@@ -338,19 +293,28 @@ app.post('/api/user/:username/kids/:kidId/request-money', authMiddleware, ownerO
     }
 });
 
-// Kid requests to spend money
-app.post('/api/user/:username/kids/:kidId/request-spend', authMiddleware, ownerOnly, async (req, res) => {
+// Kid requests to spend money (goes to pending)
+app.post('/api/user/:username/kids/:kidId/request-spend', async (req, res) => {
     try {
         const { username, kidId } = req.params;
         const { amount, description } = req.body;
         const user = await User.findOne({ username });
-        if (!user) return res.status(404).json({ error: 'User not found' });
-
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
         const kid = user.kids.find(k => k.id === parseInt(kidId));
-        if (!kid) return res.status(404).json({ error: 'Kid not found' });
-        if (amount > kid.balance) return res.status(400).json({ error: 'Insufficient kid balance' });
-
+        if (!kid) {
+            return res.status(404).json({ error: 'Kid not found' });
+        }
+        
+        if (amount > kid.balance) {
+            return res.status(400).json({ error: 'Insufficient kid balance' });
+        }
+        
         if (!user.pendingApprovals) user.pendingApprovals = [];
+        
         user.pendingApprovals.push({
             id: Date.now(),
             kidId: kid.id,
@@ -360,7 +324,7 @@ app.post('/api/user/:username/kids/:kidId/request-spend', authMiddleware, ownerO
             description: description,
             date: new Date().toISOString()
         });
-
+        
         await user.save();
         res.json({ success: true });
     } catch (err) {
@@ -370,79 +334,107 @@ app.post('/api/user/:username/kids/:kidId/request-spend', authMiddleware, ownerO
 });
 
 // Approve a pending request
-app.post('/api/user/:username/approve/:approvalId', authMiddleware, ownerOnly, async (req, res) => {
+app.post('/api/user/:username/approve/:approvalId', async (req, res) => {
     try {
         const { username, approvalId } = req.params;
         const user = await User.findOne({ username });
-        if (!user) return res.status(404).json({ error: 'User not found' });
-
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
         const approvalIndex = (user.pendingApprovals || []).findIndex(a => a.id === parseInt(approvalId));
-        if (approvalIndex === -1) return res.status(404).json({ error: 'Approval not found' });
-
+        
+        if (approvalIndex === -1) {
+            return res.status(404).json({ error: 'Approval not found' });
+        }
+        
         const approval = user.pendingApprovals[approvalIndex];
         const now = new Date().toISOString();
-
+        
         if (!user.transactions) user.transactions = [];
-
+        
         if (approval.type === 'add') {
             const kidIndex = user.kids.findIndex(k => k.id === approval.kidId);
             if (kidIndex === -1) return res.status(404).json({ error: 'Kid not found' });
             if (!user.kids[kidIndex].transactions) user.kids[kidIndex].transactions = [];
-
+            
             const income = user.transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
             const expenses = user.transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
             if (approval.amount > (income - expenses)) {
                 return res.status(400).json({ error: 'Insufficient parent balance' });
             }
-
+            
             user.kids[kidIndex].balance += approval.amount;
             user.kids[kidIndex].transactions.push({
-                id: Date.now(), description: approval.description,
-                amount: approval.amount, type: 'income', date: now
+                id: Date.now(),
+                description: approval.description,
+                amount: approval.amount,
+                type: 'income',
+                date: now
             });
             user.transactions.push({
-                id: Date.now() + 2, description: `Given to ${approval.kidName}: ${approval.description}`,
-                amount: approval.amount, type: 'expense', category: 'kids', date: now
+                id: Date.now() + 2,
+                description: `Given to ${approval.kidName}: ${approval.description}`,
+                amount: approval.amount,
+                type: 'expense',
+                category: 'kids',
+                date: now
             });
         } else if (approval.type === 'kid-transfer') {
             const fromKid = user.kids.find(k => k.id === approval.fromKidId);
             const toKid = user.kids.find(k => k.id === approval.toKidId);
+            
             if (!fromKid || !toKid) return res.status(404).json({ error: 'Kid not found' });
             if (approval.amount > fromKid.balance) return res.status(400).json({ error: 'Insufficient kid balance' });
-
+            
             if (!fromKid.transactions) fromKid.transactions = [];
             if (!toKid.transactions) toKid.transactions = [];
-
+            
             fromKid.balance -= approval.amount;
             fromKid.transactions.push({
-                id: Date.now(), description: `Sent to ${toKid.name}: ${approval.description}`,
-                amount: approval.amount, type: 'expense', date: now
+                id: Date.now(),
+                description: `Sent to ${toKid.name}: ${approval.description}`,
+                amount: approval.amount,
+                type: 'expense',
+                date: now
             });
+            
             toKid.balance += approval.amount;
             toKid.transactions.push({
-                id: Date.now() + 1, description: `Received from ${fromKid.name}: ${approval.description}`,
-                amount: approval.amount, type: 'income', date: now
+                id: Date.now() + 1,
+                description: `Received from ${fromKid.name}: ${approval.description}`,
+                amount: approval.amount,
+                type: 'income',
+                date: now
             });
         } else {
             const kidIndex = user.kids.findIndex(k => k.id === approval.kidId);
             if (kidIndex === -1) return res.status(404).json({ error: 'Kid not found' });
             if (!user.kids[kidIndex].transactions) user.kids[kidIndex].transactions = [];
-
+            
             if (approval.amount > user.kids[kidIndex].balance) {
                 return res.status(400).json({ error: 'Insufficient kid balance' });
             }
-
+            
             user.kids[kidIndex].balance -= approval.amount;
             user.kids[kidIndex].transactions.push({
-                id: Date.now(), description: approval.description,
-                amount: approval.amount, type: 'expense', date: now
+                id: Date.now(),
+                description: approval.description,
+                amount: approval.amount,
+                type: 'expense',
+                date: now
             });
             user.transactions.push({
-                id: Date.now() + 2, description: `Received from ${approval.kidName}: ${approval.description}`,
-                amount: approval.amount, type: 'income', category: 'kids', date: now
+                id: Date.now() + 2,
+                description: `Received from ${approval.kidName}: ${approval.description}`,
+                amount: approval.amount,
+                type: 'income',
+                category: 'kids',
+                date: now
             });
         }
-
+        
         user.pendingApprovals.splice(approvalIndex, 1);
         await user.save();
         res.json({ success: true });
@@ -453,15 +445,21 @@ app.post('/api/user/:username/approve/:approvalId', authMiddleware, ownerOnly, a
 });
 
 // Deny a pending request
-app.post('/api/user/:username/deny/:approvalId', authMiddleware, ownerOnly, async (req, res) => {
+app.post('/api/user/:username/deny/:approvalId', async (req, res) => {
     try {
         const { username, approvalId } = req.params;
         const user = await User.findOne({ username });
-        if (!user) return res.status(404).json({ error: 'User not found' });
-
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
         const index = (user.pendingApprovals || []).findIndex(a => a.id === parseInt(approvalId));
-        if (index === -1) return res.status(404).json({ error: 'Approval not found' });
-
+        
+        if (index === -1) {
+            return res.status(404).json({ error: 'Approval not found' });
+        }
+        
         user.pendingApprovals.splice(index, 1);
         await user.save();
         res.json({ success: true });
@@ -472,26 +470,35 @@ app.post('/api/user/:username/deny/:approvalId', authMiddleware, ownerOnly, asyn
 });
 
 // Kid-to-kid transfer request
-app.post('/api/user/:username/kids/:kidId/transfer-to-kid', authMiddleware, ownerOnly, async (req, res) => {
+app.post('/api/user/:username/kids/:kidId/transfer-to-kid', async (req, res) => {
     try {
         const { username, kidId } = req.params;
         const { targetKidId, amount, description } = req.body;
         const user = await User.findOne({ username });
-        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
 
         const fromKid = user.kids.find(k => k.id === parseInt(kidId));
         const toKid = user.kids.find(k => k.id === parseInt(targetKidId));
+
         if (!fromKid) return res.status(404).json({ error: 'Source kid not found' });
         if (!toKid) return res.status(404).json({ error: 'Target kid not found' });
         if (fromKid.id === toKid.id) return res.status(400).json({ error: 'Cannot transfer to yourself' });
         if (amount <= 0) return res.status(400).json({ error: 'Amount must be positive' });
 
         if (!user.pendingApprovals) user.pendingApprovals = [];
+
         user.pendingApprovals.push({
-            id: Date.now(), type: 'kid-transfer',
-            fromKidId: fromKid.id, fromKidName: fromKid.name,
-            toKidId: toKid.id, toKidName: toKid.name,
-            amount: amount, description: description || `${fromKid.name} → ${toKid.name}`,
+            id: Date.now(),
+            type: 'kid-transfer',
+            fromKidId: fromKid.id,
+            fromKidName: fromKid.name,
+            toKidId: toKid.id,
+            toKidName: toKid.name,
+            amount: amount,
+            description: description || `${fromKid.name} → ${toKid.name}`,
             date: new Date().toISOString()
         });
 
@@ -504,10 +511,12 @@ app.post('/api/user/:username/kids/:kidId/transfer-to-kid', authMiddleware, owne
 });
 
 // Scheduled payments
-app.get('/api/user/:username/scheduled-payments', authMiddleware, ownerOnly, async (req, res) => {
+app.get('/api/user/:username/scheduled-payments', async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
-        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
         res.json(user.scheduledPayments || []);
     } catch (err) {
         console.error(err.message);
@@ -515,23 +524,31 @@ app.get('/api/user/:username/scheduled-payments', authMiddleware, ownerOnly, asy
     }
 });
 
-app.post('/api/user/:username/scheduled-payments', authMiddleware, ownerOnly, async (req, res) => {
+app.post('/api/user/:username/scheduled-payments', async (req, res) => {
     try {
         const { username } = req.params;
         const { kidId, amount, description, frequency, dayOfWeek, dayOfMonth } = req.body;
         const user = await User.findOne({ username });
+
         if (!user) return res.status(404).json({ error: 'User not found' });
 
         const kid = user.kids.find(k => k.id === parseInt(kidId));
         if (!kid) return res.status(404).json({ error: 'Kid not found' });
 
         if (!user.scheduledPayments) user.scheduledPayments = [];
+
         const payment = {
-            id: Date.now(), kidId: kid.id, kidName: kid.name,
-            amount: parseFloat(amount), description: description || 'Allowance',
-            frequency, dayOfWeek: parseInt(dayOfWeek) || 0,
+            id: Date.now(),
+            kidId: kid.id,
+            kidName: kid.name,
+            amount: parseFloat(amount),
+            description: description || 'Allowance',
+            frequency,
+            dayOfWeek: parseInt(dayOfWeek) || 0,
             dayOfMonth: parseInt(dayOfMonth) || 1,
-            lastPaid: null, active: true, created: new Date().toISOString()
+            lastPaid: null,
+            active: true,
+            created: new Date().toISOString()
         };
 
         user.scheduledPayments.push(payment);
@@ -543,11 +560,12 @@ app.post('/api/user/:username/scheduled-payments', authMiddleware, ownerOnly, as
     }
 });
 
-app.put('/api/user/:username/scheduled-payments/:paymentId', authMiddleware, ownerOnly, async (req, res) => {
+app.put('/api/user/:username/scheduled-payments/:paymentId', async (req, res) => {
     try {
         const { username, paymentId } = req.params;
         const { active } = req.body;
         const user = await User.findOne({ username });
+
         if (!user) return res.status(404).json({ error: 'User not found' });
 
         const payment = (user.scheduledPayments || []).find(p => p.id === parseInt(paymentId));
@@ -562,10 +580,11 @@ app.put('/api/user/:username/scheduled-payments/:paymentId', authMiddleware, own
     }
 });
 
-app.delete('/api/user/:username/scheduled-payments/:paymentId', authMiddleware, ownerOnly, async (req, res) => {
+app.delete('/api/user/:username/scheduled-payments/:paymentId', async (req, res) => {
     try {
         const { username, paymentId } = req.params;
         const user = await User.findOne({ username });
+
         if (!user) return res.status(404).json({ error: 'User not found' });
 
         const index = (user.scheduledPayments || []).findIndex(p => p.id === parseInt(paymentId));
@@ -602,12 +621,17 @@ async function processScheduledPayments() {
                 const diffDays = Math.floor((now - lastPaid) / (1000 * 60 * 60 * 24));
                 let shouldPay = false;
 
-                if (sp.frequency === 'daily' && diffDays >= 1) shouldPay = true;
-                else if (sp.frequency === 'weekly' && diffDays >= 7) shouldPay = true;
-                else if (sp.frequency === 'biweekly' && diffDays >= 14) shouldPay = true;
-                else if (sp.frequency === 'monthly' && (now.getDate() >= sp.dayOfMonth && now.getDate() <= sp.dayOfMonth + 1)) {
+                if (sp.frequency === 'daily' && diffDays >= 1) {
+                    shouldPay = true;
+                } else if (sp.frequency === 'weekly' && diffDays >= 7) {
+                    shouldPay = true;
+                } else if (sp.frequency === 'biweekly' && diffDays >= 14) {
+                    shouldPay = true;
+                } else if (sp.frequency === 'monthly' && (now.getDate() >= sp.dayOfMonth && now.getDate() <= sp.dayOfMonth + 1)) {
                     const monthDiff = (now.getFullYear() - lastPaid.getFullYear()) * 12 + now.getMonth() - lastPaid.getMonth();
-                    if (monthDiff >= 1 || (monthDiff === 0 && now.getDate() === sp.dayOfMonth)) shouldPay = true;
+                    if (monthDiff >= 1 || (monthDiff === 0 && now.getDate() === sp.dayOfMonth)) {
+                        shouldPay = true;
+                    }
                 }
 
                 if (shouldPay) {
@@ -617,19 +641,29 @@ async function processScheduledPayments() {
                         if (!kid.transactions) kid.transactions = [];
 
                         user.transactions.push({
-                            id: Date.now(), description: `Auto: ${sp.description} → ${sp.kidName}`,
-                            amount: sp.amount, type: 'expense', category: 'kids', date: now.toISOString()
+                            id: Date.now(),
+                            description: `Auto: ${sp.description} → ${sp.kidName}`,
+                            amount: sp.amount,
+                            type: 'expense',
+                            category: 'kids',
+                            date: now.toISOString()
                         });
+
                         kid.balance += sp.amount;
                         kid.transactions.push({
-                            id: Date.now() + 1, description: sp.description,
-                            amount: sp.amount, type: 'income', date: now.toISOString()
+                            id: Date.now() + 1,
+                            description: sp.description,
+                            amount: sp.amount,
+                            type: 'income',
+                            date: now.toISOString()
                         });
+
                         sp.lastPaid = now.toISOString();
                         changed = true;
                     }
                 }
             }
+
             if (changed) await user.save();
         }
     } catch (err) {
@@ -639,44 +673,53 @@ async function processScheduledPayments() {
 
 setInterval(processScheduledPayments, 60 * 1000);
 
-// Transfer (requires auth)
-app.post('/api/transfer', authMiddleware, async (req, res) => {
+// Transfer
+app.post('/api/transfer', async (req, res) => {
     try {
         const { from, to, amount, note } = req.body;
-
-        if (req.authUser !== from) {
-            return res.status(403).json({ error: 'You can only send from your own account' });
-        }
-
+        
         const sender = await User.findOne({ username: from });
         const recipient = await User.findOne({ username: to });
-
-        if (!sender) return res.status(404).json({ error: 'Sender not found' });
-        if (!recipient) return res.status(404).json({ error: 'Recipient not found' });
-        if (from === to) return res.status(400).json({ error: 'Cannot send to yourself' });
-
+        
+        if (!sender) {
+            return res.status(404).json({ error: 'Sender not found' });
+        }
+        if (!recipient) {
+            return res.status(404).json({ error: 'Recipient not found' });
+        }
+        if (from === to) {
+            return res.status(400).json({ error: 'Cannot send to yourself' });
+        }
+        
         const senderTx = sender.transactions || [];
         const income = senderTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
         const expenses = senderTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
         const balance = income - expenses;
-
-        if (amount > balance) return res.status(400).json({ error: 'Insufficient balance' });
-
+        
+        if (amount > balance) {
+            return res.status(400).json({ error: 'Insufficient balance' });
+        }
+        
         const now = new Date().toISOString();
+        
         if (!sender.transactions) sender.transactions = [];
         if (!recipient.transactions) recipient.transactions = [];
-
+        
         sender.transactions.push({
-            id: Date.now(), description: `Sent to ${to}: ${note || 'Transfer'}`,
+            id: Date.now(),
+            description: `Sent to ${to}: ${note || 'Transfer'}`,
             amount, type: 'expense', category: 'transfer', date: now
         });
+        
         recipient.transactions.push({
-            id: Date.now() + 1, description: `Received from ${from}: ${note || 'Transfer'}`,
+            id: Date.now() + 1,
+            description: `Received from ${from}: ${note || 'Transfer'}`,
             amount, type: 'income', category: 'transfer', date: now
         });
-
+        
         await sender.save();
         await recipient.save();
+        
         res.json({ success: true });
     } catch (err) {
         console.error(err.message);
@@ -684,20 +727,15 @@ app.post('/api/transfer', authMiddleware, async (req, res) => {
     }
 });
 
-// Change password (requires auth)
-app.post('/api/user/:username/change-password', authMiddleware, ownerOnly, async (req, res) => {
+// Change password
+app.post('/api/user/:username/change-password', async (req, res) => {
     try {
         const { username } = req.params;
         const { currentPassword, newPassword } = req.body;
         const user = await User.findOne({ username });
         if (!user) return res.status(404).json({ error: 'User not found' });
-
-        const validPassword = await bcrypt.compare(currentPassword, user.password);
-        if (!validPassword) return res.status(401).json({ error: 'Incorrect current password' });
-
-        if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
-
-        user.password = await bcrypt.hash(newPassword, 10);
+        if (user.password !== currentPassword) return res.status(401).json({ error: 'Incorrect current password' });
+        user.password = newPassword;
         await user.save();
         res.json({ success: true });
     } catch (err) {
@@ -706,33 +744,27 @@ app.post('/api/user/:username/change-password', authMiddleware, ownerOnly, async
     }
 });
 
-// Change username (requires auth)
-app.post('/api/user/:username/change-username', authMiddleware, ownerOnly, async (req, res) => {
+// Change username
+app.post('/api/user/:username/change-username', async (req, res) => {
     try {
         const { username } = req.params;
         const { newUsername, password } = req.body;
         const user = await User.findOne({ username });
         if (!user) return res.status(404).json({ error: 'User not found' });
-
-        const validPassword = await bcrypt.compare(password, user.password);
-        if (!validPassword) return res.status(401).json({ error: 'Incorrect password' });
-
+        if (user.password !== password) return res.status(401).json({ error: 'Incorrect password' });
         const exists = await User.findOne({ username: newUsername });
         if (exists) return res.status(400).json({ error: 'Username already taken' });
-
         user.username = newUsername;
         await user.save();
-
-        const newToken = jwt.sign({ username: newUsername }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
-        res.json({ success: true, newUsername, token: newToken });
+        res.json({ success: true, newUsername });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
 });
 
-// Settings
-app.get('/api/user/:username/settings', authMiddleware, ownerOnly, async (req, res) => {
+// Settings (theme)
+app.get('/api/user/:username/settings', async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
@@ -743,7 +775,7 @@ app.get('/api/user/:username/settings', authMiddleware, ownerOnly, async (req, r
     }
 });
 
-app.put('/api/user/:username/settings', authMiddleware, ownerOnly, async (req, res) => {
+app.put('/api/user/:username/settings', async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
@@ -756,7 +788,7 @@ app.put('/api/user/:username/settings', authMiddleware, ownerOnly, async (req, r
     }
 });
 
-// Forgot password
+// Forgot password - send reset code
 app.post('/api/forgot-password', async (req, res) => {
     try {
         const { email } = req.body;
@@ -771,7 +803,8 @@ app.post('/api/forgot-password', async (req, res) => {
         if (transporter) {
             try {
                 await transporter.sendMail({
-                    from: SMTP_FROM, to: email,
+                    from: SMTP_FROM,
+                    to: email,
                     subject: 'Family Finance - Password Reset Code',
                     text: `Your reset code is: ${code}\nThis code expires in 15 minutes.`,
                     html: `<p>Your password reset code is:</p><h2 style="letter-spacing:4px">${code}</h2><p>This code expires in 15 minutes.</p>`
@@ -815,7 +848,7 @@ app.post('/api/reset-password', async (req, res) => {
         if (!user.resetCode || !user.resetCodeExpiry) return res.status(400).json({ error: 'No reset code active' });
         if (new Date() > user.resetCodeExpiry) return res.status(400).json({ error: 'Code expired' });
         if (user.resetCode !== code) return res.status(401).json({ error: 'Incorrect code' });
-        user.password = await bcrypt.hash(newPassword, 10);
+        user.password = newPassword;
         user.resetCode = null;
         user.resetCodeExpiry = null;
         await user.save();
@@ -826,7 +859,7 @@ app.post('/api/reset-password', async (req, res) => {
     }
 });
 
-// Forgot username
+// Forgot username - look up by email
 app.post('/api/forgot-username', async (req, res) => {
     try {
         const { email } = req.body;
@@ -839,8 +872,8 @@ app.post('/api/forgot-username', async (req, res) => {
     }
 });
 
-// 2FA Setup (requires auth)
-app.post('/api/user/:username/2fa/setup', authMiddleware, ownerOnly, async (req, res) => {
+// 2FA Setup - Generate secret and QR code
+app.post('/api/user/:username/2fa/setup', async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
@@ -853,6 +886,7 @@ app.post('/api/user/:username/2fa/setup', authMiddleware, ownerOnly, async (req,
         await user.save();
 
         const qrCodeUrl = await QRCode.toDataURL(otpauth);
+
         res.json({ success: true, secret, qrCode: qrCodeUrl });
     } catch (err) {
         console.error(err.message);
@@ -860,8 +894,8 @@ app.post('/api/user/:username/2fa/setup', authMiddleware, ownerOnly, async (req,
     }
 });
 
-// 2FA Verify (requires auth)
-app.post('/api/user/:username/2fa/verify', authMiddleware, ownerOnly, async (req, res) => {
+// 2FA Verify - Verify code during setup
+app.post('/api/user/:username/2fa/verify', async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
@@ -875,6 +909,7 @@ app.post('/api/user/:username/2fa/verify', authMiddleware, ownerOnly, async (req
 
         user.twoFactorEnabled = true;
         await user.save();
+
         res.json({ success: true });
     } catch (err) {
         console.error(err.message);
@@ -882,16 +917,15 @@ app.post('/api/user/:username/2fa/verify', authMiddleware, ownerOnly, async (req
     }
 });
 
-// 2FA Disable (requires auth)
-app.post('/api/user/:username/2fa/disable', authMiddleware, ownerOnly, async (req, res) => {
+// 2FA Disable
+app.post('/api/user/:username/2fa/disable', async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
         if (!user.twoFactorEnabled) return res.status(400).json({ error: '2FA is not enabled' });
 
         const { password, code } = req.body;
-        const validPassword = await bcrypt.compare(password, user.password);
-        if (!validPassword) return res.status(401).json({ error: 'Incorrect password' });
+        if (user.password !== password) return res.status(401).json({ error: 'Incorrect password' });
 
         if (code) {
             const result = verifySync({ token: code, secret: user.twoFactorSecret });
@@ -904,6 +938,7 @@ app.post('/api/user/:username/2fa/disable', authMiddleware, ownerOnly, async (re
         user.twoFactorEnabled = false;
         user.twoFactorSecret = null;
         await user.save();
+
         res.json({ success: true });
     } catch (err) {
         console.error(err.message);
@@ -911,56 +946,59 @@ app.post('/api/user/:username/2fa/disable', authMiddleware, ownerOnly, async (re
     }
 });
 
-// Pages - login/register/forgot are public, everything else requires token query param
+// 2FA Login - Verify code during login
+app.post('/api/user/:username/2fa/login', async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!user.twoFactorEnabled) return res.status(400).json({ error: '2FA is not enabled' });
+
+        const { code } = req.body;
+        const result = verifySync({ token: code, secret: user.twoFactorSecret });
+        const isValid = result && result.valid;
+        if (!isValid) return res.status(401).json({ error: 'Invalid 2FA code' });
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Pages
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/dashboard', (req, res) => {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+app.get('/transactions', (req, res) => {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(path.join(__dirname, 'public', 'transactions.html'));
+});
+app.get('/kids', (req, res) => {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(path.join(__dirname, 'public', 'kids.html'));
+});
+app.get('/transfer', (req, res) => {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(path.join(__dirname, 'public', 'transfer.html'));
+});
 app.get('/forgot-password', (req, res) => {
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(__dirname, 'public', 'forgot-password.html'));
 });
 
-// Protected pages - verify token via query string or cookie
-function pageAuth(req, res, next) {
-    const token = req.query.token;
-    if (!token) return res.redirect('/');
-
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        if (decoded.temp) return res.redirect('/');
-        req.authUser = decoded.username;
-        next();
-    } catch (err) {
-        return res.redirect('/');
-    }
-}
-
-app.get('/dashboard', pageAuth, (req, res) => {
-    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-});
-app.get('/transactions', pageAuth, (req, res) => {
-    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.sendFile(path.join(__dirname, 'public', 'transactions.html'));
-});
-app.get('/kids', pageAuth, (req, res) => {
-    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.sendFile(path.join(__dirname, 'public', 'kids.html'));
-});
-app.get('/transfer', pageAuth, (req, res) => {
-    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.sendFile(path.join(__dirname, 'public', 'transfer.html'));
-});
-
-// Health check
+// Health check for Render
 app.get('/health', (req, res) => {
-    res.json({
-        status: 'ok',
+    res.json({ 
+        status: 'ok', 
         timestamp: new Date().toISOString(),
         mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
         mongodbUri: MONGODB_URI ? 'configured' : 'NOT SET'
     });
 });
 
-// Error handling
+// Error handling middleware
 app.use((err, req, res, next) => {
     console.error('Server error:', err);
     res.status(500).json({ error: 'Internal server error' });
