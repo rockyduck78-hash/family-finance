@@ -257,7 +257,7 @@
                     <div class="transaction-left">
                         <div class="transaction-icon">${t.type === 'income' ? '&#8593;' : '&#8595;'}</div>
                         <div class="transaction-info">
-                            <h4>${t.description}</h4>
+                            <h4>${escapeHtml(t.description)}</h4>
                             <span>${new Date(t.date).toLocaleDateString()}</span>
                         </div>
                     </div>

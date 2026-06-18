@@ -8,11 +8,16 @@ const { generateSecret, generateSync, verifySync, generateURI } = require('otpli
 const QRCode = require('qrcode');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
-const JWT_SECRET = process.env.JWT_SECRET || 'family-finance-secret-change-in-production';
+
+if (!process.env.JWT_SECRET) {
+    console.warn('WARNING: JWT_SECRET not set. Generating a random secret. Set JWT_SECRET env var for persistent sessions.');
+}
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
 const JWT_EXPIRY = '24h';
 
 // SMTP config for sending reset emails (optional - falls back to showing code on screen)
@@ -132,8 +137,49 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Security headers
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+});
+
+// Rate limiters for auth endpoints
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 15,
+    message: { error: 'Too many attempts. Please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+const forgotLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    message: { error: 'Too many attempts. Please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+// Input validation helpers
+function isValidUsername(u) {
+    return typeof u === 'string' && u.trim().length >= 3 && u.trim().length <= 30 && /^[a-zA-Z0-9_-]+$/.test(u.trim());
+}
+function isValidEmail(e) {
+    return typeof e === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
+}
+function isValidPassword(p) {
+    return typeof p === 'string' && p.length >= 6 && p.length <= 128;
+}
+function sanitize(str) {
+    if (typeof str !== 'string') return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+}
 
 // Log MongoDB connection state for API calls
 app.use('/api', (req, res, next) => {
@@ -173,12 +219,21 @@ async function getUser(username) {
 }
 
 // Auth
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', authLimiter, async (req, res) => {
     try {
         const { username, password, email } = req.body;
 
         if (!username || !password || !email) {
             return res.status(400).json({ error: 'Username, email, and password are required' });
+        }
+        if (!isValidUsername(username)) {
+            return res.status(400).json({ error: 'Username must be 3-30 characters (letters, numbers, _, -)' });
+        }
+        if (!isValidEmail(email)) {
+            return res.status(400).json({ error: 'Invalid email format' });
+        }
+        if (!isValidPassword(password)) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters' });
         }
 
         const existing = await User.findOne({ username });
@@ -212,7 +267,7 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', authLimiter, async (req, res) => {
     try {
         const { username, password } = req.body;
         const user = await User.findOne({ username });
@@ -322,6 +377,10 @@ app.post('/api/user/:username/kids/:kidId/request-money', authMiddleware, ownerO
             return res.status(404).json({ error: 'Kid not found' });
         }
         
+        if (!amount || isNaN(amount) || amount <= 0 || amount > 100000) {
+            return res.status(400).json({ error: 'Invalid amount' });
+        }
+
         if (!user.pendingApprovals) user.pendingApprovals = [];
         
         user.pendingApprovals.push({
@@ -329,8 +388,8 @@ app.post('/api/user/:username/kids/:kidId/request-money', authMiddleware, ownerO
             kidId: kid.id,
             kidName: kid.name,
             type: 'add',
-            amount: amount,
-            description: description,
+            amount: parseFloat(amount),
+            description: sanitize(description || 'Request'),
             date: new Date().toISOString()
         });
         
@@ -358,6 +417,10 @@ app.post('/api/user/:username/kids/:kidId/request-spend', authMiddleware, ownerO
             return res.status(404).json({ error: 'Kid not found' });
         }
         
+        if (!amount || isNaN(amount) || amount <= 0 || amount > 100000) {
+            return res.status(400).json({ error: 'Invalid amount' });
+        }
+        
         if (amount > kid.balance) {
             return res.status(400).json({ error: 'Insufficient kid balance' });
         }
@@ -369,8 +432,8 @@ app.post('/api/user/:username/kids/:kidId/request-spend', authMiddleware, ownerO
             kidId: kid.id,
             kidName: kid.name,
             type: 'spend',
-            amount: amount,
-            description: description,
+            amount: parseFloat(amount),
+            description: sanitize(description || 'Spend'),
             date: new Date().toISOString()
         });
         
@@ -535,7 +598,7 @@ app.post('/api/user/:username/kids/:kidId/transfer-to-kid', authMiddleware, owne
         if (!fromKid) return res.status(404).json({ error: 'Source kid not found' });
         if (!toKid) return res.status(404).json({ error: 'Target kid not found' });
         if (fromKid.id === toKid.id) return res.status(400).json({ error: 'Cannot transfer to yourself' });
-        if (amount <= 0) return res.status(400).json({ error: 'Amount must be positive' });
+        if (!amount || isNaN(amount) || amount <= 0 || amount > 100000) return res.status(400).json({ error: 'Invalid amount' });
 
         if (!user.pendingApprovals) user.pendingApprovals = [];
 
@@ -546,8 +609,8 @@ app.post('/api/user/:username/kids/:kidId/transfer-to-kid', authMiddleware, owne
             fromKidName: fromKid.name,
             toKidId: toKid.id,
             toKidName: toKid.name,
-            amount: amount,
-            description: description || `${fromKid.name} → ${toKid.name}`,
+            amount: parseFloat(amount),
+            description: sanitize(description || `${fromKid.name} → ${toKid.name}`),
             date: new Date().toISOString()
         });
 
@@ -591,7 +654,7 @@ app.post('/api/user/:username/scheduled-payments', authMiddleware, ownerOnly, as
             kidId: kid.id,
             kidName: kid.name,
             amount: parseFloat(amount),
-            description: description || 'Allowance',
+            description: sanitize(description || 'Allowance'),
             frequency,
             dayOfWeek: parseInt(dayOfWeek) || 0,
             dayOfMonth: parseInt(dayOfMonth) || 1,
@@ -723,9 +786,13 @@ async function processScheduledPayments() {
 setInterval(processScheduledPayments, 60 * 1000);
 
 // Transfer
-app.post('/api/transfer', authMiddleware, async (req, res) => {
+app.post('/api/transfer', authLimiter, authMiddleware, async (req, res) => {
     try {
         const { from, to, amount, note } = req.body;
+
+        if (req.authUser !== from) {
+            return res.status(403).json({ error: 'Cannot send on behalf of another user' });
+        }
         
         const sender = await User.findOne({ username: from });
         const recipient = await User.findOne({ username: to });
@@ -756,13 +823,13 @@ app.post('/api/transfer', authMiddleware, async (req, res) => {
         
         sender.transactions.push({
             id: Date.now(),
-            description: `Sent to ${to}: ${note || 'Transfer'}`,
+            description: `Sent to ${to}: ${sanitize(note) || 'Transfer'}`,
             amount, type: 'expense', category: 'transfer', date: now
         });
         
         recipient.transactions.push({
             id: Date.now() + 1,
-            description: `Received from ${from}: ${note || 'Transfer'}`,
+            description: `Received from ${from}: ${sanitize(note) || 'Transfer'}`,
             amount, type: 'income', category: 'transfer', date: now
         });
         
@@ -783,6 +850,8 @@ app.post('/api/user/:username/change-password', authMiddleware, ownerOnly, async
         const { currentPassword, newPassword } = req.body;
         const user = await User.findOne({ username });
         if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Current and new password required' });
+        if (!isValidPassword(newPassword)) return res.status(400).json({ error: 'New password must be at least 6 characters' });
 
         let passwordMatch = false;
         try { passwordMatch = await bcrypt.compare(currentPassword, user.password); } catch (e) {}
@@ -805,6 +874,8 @@ app.post('/api/user/:username/change-username', authMiddleware, ownerOnly, async
         const { newUsername, password } = req.body;
         const user = await User.findOne({ username });
         if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!newUsername || !password) return res.status(400).json({ error: 'New username and password required' });
+        if (!isValidUsername(newUsername)) return res.status(400).json({ error: 'Username must be 3-30 characters (letters, numbers, _, -)' });
 
         let passwordMatch = false;
         try { passwordMatch = await bcrypt.compare(password, user.password); } catch (e) {}
@@ -850,9 +921,10 @@ app.put('/api/user/:username/settings', authMiddleware, ownerOnly, async (req, r
 });
 
 // Forgot password - send reset code
-app.post('/api/forgot-password', async (req, res) => {
+app.post('/api/forgot-password', forgotLimiter, async (req, res) => {
     try {
         const { email } = req.body;
+        if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Valid email required' });
         const user = await User.findOne({ email });
         if (!user) return res.status(404).json({ error: 'No account with that email' });
 
@@ -873,10 +945,10 @@ app.post('/api/forgot-password', async (req, res) => {
                 res.json({ success: true, emailed: true });
             } catch (err) {
                 console.error('Email send error:', err.message);
-                res.json({ success: true, emailed: false, code });
+                res.json({ success: true, emailed: false });
             }
         } else {
-            res.json({ success: true, emailed: false, code });
+            res.json({ success: true, emailed: false });
         }
     } catch (err) {
         console.error(err.message);
@@ -885,9 +957,10 @@ app.post('/api/forgot-password', async (req, res) => {
 });
 
 // Verify reset code
-app.post('/api/verify-reset-code', async (req, res) => {
+app.post('/api/verify-reset-code', forgotLimiter, async (req, res) => {
     try {
         const { email, code } = req.body;
+        if (!email || !code) return res.status(400).json({ error: 'Email and code required' });
         const user = await User.findOne({ email });
         if (!user) return res.status(404).json({ error: 'User not found' });
         if (!user.resetCode || !user.resetCodeExpiry) return res.status(400).json({ error: 'No reset code active' });
@@ -901,11 +974,13 @@ app.post('/api/verify-reset-code', async (req, res) => {
 });
 
 // Reset password
-app.post('/api/reset-password', async (req, res) => {
+app.post('/api/reset-password', forgotLimiter, async (req, res) => {
     try {
         const { email, code, newPassword } = req.body;
         const user = await User.findOne({ email });
         if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!newPassword) return res.status(400).json({ error: 'New password required' });
+        if (!isValidPassword(newPassword)) return res.status(400).json({ error: 'Password must be at least 6 characters' });
         if (!user.resetCode || !user.resetCodeExpiry) return res.status(400).json({ error: 'No reset code active' });
         if (new Date() > user.resetCodeExpiry) return res.status(400).json({ error: 'Code expired' });
         if (user.resetCode !== code) return res.status(401).json({ error: 'Incorrect code' });
@@ -921,7 +996,7 @@ app.post('/api/reset-password', async (req, res) => {
 });
 
 // Forgot username - look up by email
-app.post('/api/forgot-username', async (req, res) => {
+app.post('/api/forgot-username', forgotLimiter, async (req, res) => {
     try {
         const { email } = req.body;
         const user = await User.findOne({ email });

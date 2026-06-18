@@ -245,7 +245,7 @@
                     return `
                         <div class="kid-card">
                             <div class="kid-header">
-                                <div class="kid-name"><div class="kid-avatar">${k.name[0]}</div>${k.name}</div>
+                                <div class="kid-name"><div class="kid-avatar">${escapeHtml(k.name[0])}</div>${escapeHtml(k.name)}</div>
                                 <button class="btn-ghost" onclick="deleteKid(${i})">&#10005;</button>
                             </div>
                             <div class="kid-locked">
@@ -261,7 +261,7 @@
                 return `
                     <div class="kid-card">
                         <div class="kid-header">
-                            <div class="kid-name"><div class="kid-avatar">${k.name[0]}</div>${k.name}</div>
+                            <div class="kid-name"><div class="kid-avatar">${escapeHtml(k.name[0])}</div>${escapeHtml(k.name)}</div>
                             <button class="btn-ghost" onclick="deleteKid(${i})">&#10005;</button>
                         </div>
                         <div class="kid-balance-box">
@@ -277,7 +277,7 @@
                         </div>
                         <div class="kid-tx-list">
                             ${txs.length ? txs.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 8).map(t =>
-                                `<div class="kid-tx-item"><span>${t.description}</span><span class="transaction-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${fmt(t.amount)}</span></div>`
+                                `<div class="kid-tx-item"><span>${escapeHtml(t.description)}</span><span class="transaction-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${fmt(t.amount)}</span></div>`
                             ).join('') : '<div class="empty-state"><p>No transactions</p></div>'}
                         </div>
                     </div>`;
@@ -294,7 +294,7 @@
                     <div class="transaction-left">
                         <div class="transaction-icon">&#128197;</div>
                         <div class="transaction-info">
-                            <h4>${sp.kidName} &mdash; ${sp.description}</h4>
+                            <h4>${escapeHtml(sp.kidName)} &mdash; ${escapeHtml(sp.description)}</h4>
                             <span>${sp.frequency} &bull; ${fmt(sp.amount)} &bull; ${sp.active ? 'Active' : 'Paused'}</span>
                         </div>
                     </div>

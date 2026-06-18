@@ -34,6 +34,13 @@ function authHeaders() {
     return token ? { 'Authorization': 'Bearer ' + token } : {};
 }
 
+function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
 function formatCurrency(amount) {
     return new Intl.NumberFormat('en-US', {
         style: 'currency',

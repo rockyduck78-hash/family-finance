@@ -166,10 +166,10 @@
                 return `
                     <div class="approval-item">
                         <div class="approval-header">
-                            <strong>${a.kidName || a.fromKidName + ' &#8594; ' + a.toKidName}</strong>
+                            <strong>${escapeHtml(a.kidName || a.fromKidName + ' &#8594; ' + a.toKidName)}</strong>
                             <span class="approval-badge ${badgeClass}">${label}</span>
                         </div>
-                        <div class="approval-details">${a.description} &mdash; $${a.amount.toFixed(2)}</div>
+                        <div class="approval-details">${escapeHtml(a.description)} &mdash; $${a.amount.toFixed(2)}</div>
                         <div class="approval-actions">
                             <button class="btn btn-success btn-small" onclick="approve(${a.id})">Approve</button>
                             <button class="btn btn-danger btn-small" onclick="deny(${a.id})">Deny</button>
@@ -205,8 +205,8 @@
                         <div class="transaction-left">
                             <div class="transaction-icon">${t.type === 'income' ? '&#8593;' : '&#8595;'}</div>
                             <div class="transaction-info">
-                                <h4>${t.description}</h4>
-                                <span>${t.category} &bull; ${new Date(t.date).toLocaleDateString()}</span>
+                                <h4>${escapeHtml(t.description)}</h4>
+                                <span>${escapeHtml(t.category)} &bull; ${new Date(t.date).toLocaleDateString()}</span>
                             </div>
                         </div>
                         <div class="transaction-right">

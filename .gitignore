@@ -2,3 +2,5 @@ node_modules/
 data.json
 server.log
 server-error.log
+.env
+.env.local
