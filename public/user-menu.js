@@ -283,13 +283,6 @@ async function disable2FA() {
 
 // Forget trusted device - will require 2FA code on next login
 async function forgetDevice() {
-    const user = localStorage.getItem('currentUser');
-    if (!user) return;
-    try {
-        const data = await apiPost('/api/user/' + user + '/forget-device', {});
-        if (data.error) return alert(data.error);
-        alert('This device has been forgotten. You will need to enter your 2FA code on next login.');
-    } catch (e) {
-        alert('Failed to forget device');
-    }
+    localStorage.removeItem('ff-trusted');
+    alert('This device has been forgotten. You will need to enter your 2FA code on next login.');
 }

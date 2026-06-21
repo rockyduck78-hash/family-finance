@@ -165,13 +165,20 @@
                 if (data.error) return alert(data.error);
                 localStorage.setItem('currentUser', pendingLogin);
                 localStorage.setItem('ff-token', data.token);
+                if (data.trustedDevice) {
+                    localStorage.setItem('ff-trusted', data.trustedDevice);
+                }
                 window.location.href = '/dashboard';
                 return;
             }
 
+            const trustedDevice = localStorage.getItem('ff-trusted');
+            const loginHeaders = { 'Content-Type': 'application/json' };
+            if (trustedDevice) loginHeaders['x-trusted-device'] = trustedDevice;
+
             const res = await fetch('/api/login', {
                 method: 'POST', credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
+                headers: loginHeaders,
                 body: JSON.stringify({ username, password })
             });
             const data = await res.json();

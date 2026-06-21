@@ -196,19 +196,6 @@ function sanitize(str) {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
 }
 
-// Parse cookies from request headers
-function parseCookies(req) {
-    const cookies = {};
-    const header = req.headers.cookie;
-    if (header) {
-        header.split(';').forEach(c => {
-            const [name, ...rest] = c.split('=');
-            cookies[name.trim()] = decodeURIComponent(rest.join('='));
-        });
-    }
-    return cookies;
-}
-
 // Generate a trusted device token (30-day JWT)
 function generateTrustedDeviceToken(username) {
     return jwt.sign({ username, trustedDevice: true }, TRUSTED_DEVICE_SECRET, { expiresIn: '30d' });
@@ -221,17 +208,6 @@ function verifyTrustedDeviceToken(token) {
         if (decoded.trustedDevice) return decoded.username;
     } catch (e) {}
     return null;
-}
-
-// Set trusted device cookie on response
-function setTrustedDeviceCookie(res, username) {
-    const token = generateTrustedDeviceToken(username);
-    res.setHeader('Set-Cookie', `ff_trusted=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${TRUSTED_DEVICE_MAX_AGE / 1000}`);
-}
-
-// Clear trusted device cookie
-function clearTrustedDeviceCookie(res) {
-    res.setHeader('Set-Cookie', 'ff_trusted=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
 }
 
 // Log MongoDB connection state for API calls
@@ -348,12 +324,11 @@ app.post('/api/login', authLimiter, async (req, res) => {
             return res.status(401).json({ error: 'Incorrect password' });
         }
         
-        // Check for trusted device cookie - skip 2FA if valid
-        const cookies = parseCookies(req);
-        if (user.twoFactorEnabled && cookies.ff_trusted) {
-            const trustedUser = verifyTrustedDeviceToken(cookies.ff_trusted);
+        // Check for trusted device token in header - skip 2FA if valid
+        const trustedDeviceToken = req.headers['x-trusted-device'];
+        if (user.twoFactorEnabled && trustedDeviceToken) {
+            const trustedUser = verifyTrustedDeviceToken(trustedDeviceToken);
             if (trustedUser === username) {
-                // Trusted device - skip 2FA
                 const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
                 return res.json({ success: true, token });
             }
@@ -1046,9 +1021,6 @@ app.post('/api/user/:username/change-password', authMiddleware, ownerOnly, async
         user.password = await bcrypt.hash(newPassword, 10);
         await user.save();
 
-        // Clear trusted device cookie on password change for security
-        clearTrustedDeviceCookie(res);
-
         res.json({ success: true });
     } catch (err) {
         console.error(err.message);
@@ -1290,9 +1262,6 @@ app.post('/api/reset-password', forgotLimiter, async (req, res) => {
         user.resetCodeExpiry = null;
         await user.save();
 
-        // Clear trusted device cookie on password reset for security
-        clearTrustedDeviceCookie(res);
-
         res.json({ success: true });
     } catch (err) {
         console.error(err.message);
@@ -1383,20 +1352,6 @@ app.post('/api/user/:username/2fa/disable', authMiddleware, ownerOnly, async (re
         user.twoFactorSecret = null;
         await user.save();
 
-        // Clear trusted device cookie when 2FA is disabled
-        clearTrustedDeviceCookie(res);
-
-        res.json({ success: true });
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
-// Forget trusted device - clear the trusted device cookie
-app.post('/api/user/:username/forget-device', authMiddleware, ownerOnly, async (req, res) => {
-    try {
-        clearTrustedDeviceCookie(res);
         res.json({ success: true });
     } catch (err) {
         console.error(err.message);
@@ -1431,11 +1386,11 @@ app.post('/api/user/:username/2fa/login', async (req, res) => {
         const isValid = result && result.valid;
         if (!isValid) return res.status(401).json({ error: 'Invalid 2FA code' });
 
-        // Set trusted device cookie so 2FA is not required on next login from this device
-        setTrustedDeviceCookie(res, user.username);
+        // Generate trusted device token so 2FA is not required on next login from this device
+        const trustedToken = generateTrustedDeviceToken(user.username);
 
         const fullToken = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
-        res.json({ success: true, token: fullToken });
+        res.json({ success: true, token: fullToken, trustedDevice: trustedToken });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Server error' });
