@@ -1354,7 +1354,80 @@ app.get('/api/family/members', authMiddleware, async (req, res) => {
         const group = await FamilyGroup.findById(user.familyGroupId);
         if (!group) return res.status(404).json({ error: 'Group not found' });
 
-        res.json(group.members);
+        // Return members with their balances
+        const members = [];
+        for (const m of group.members) {
+            const memberUser = await User.findOne({ username: m });
+            if (memberUser) {
+                const txs = memberUser.transactions || [];
+                const income = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+                const expenses = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+                members.push({
+                    username: m,
+                    balance: income - expenses,
+                    transactionCount: txs.length,
+                    isOwner: group.ownerId.toString() === memberUser._id.toString()
+                });
+            }
+        }
+        res.json(members);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get a member's transactions (owner only)
+app.get('/api/family/member/:memberName/transactions', authMiddleware, async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.authUser });
+        if (!user || !user.familyGroupId) return res.status(400).json({ error: 'Not in a family group' });
+
+        const group = await FamilyGroup.findById(user.familyGroupId);
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+
+        const isOwner = group.ownerId.toString() === user._id.toString();
+        if (!isOwner) return res.status(403).json({ error: 'Only the group owner can view member transactions' });
+
+        const memberUser = await User.findOne({ username: req.params.memberName });
+        if (!memberUser) return res.status(404).json({ error: 'Member not found' });
+
+        res.json({
+            username: memberUser.username,
+            transactions: memberUser.transactions || []
+        });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Remove a member from the group (owner only)
+app.post('/api/family/remove-member', authMiddleware, async (req, res) => {
+    try {
+        const { username: memberToRemove } = req.body;
+        const user = await User.findOne({ username: req.authUser });
+        if (!user || !user.familyGroupId) return res.status(400).json({ error: 'Not in a family group' });
+
+        const group = await FamilyGroup.findById(user.familyGroupId);
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+
+        const isOwner = group.ownerId.toString() === user._id.toString();
+        if (!isOwner) return res.status(403).json({ error: 'Only the group owner can remove members' });
+
+        if (memberToRemove === req.authUser) return res.status(400).json({ error: 'Cannot remove yourself' });
+        if (!group.members.includes(memberToRemove)) return res.status(404).json({ error: 'Member not in group' });
+
+        group.members = group.members.filter(m => m !== memberToRemove);
+        await group.save();
+
+        const removedUser = await User.findOne({ username: memberToRemove });
+        if (removedUser) {
+            removedUser.familyGroupId = null;
+            await removedUser.save();
+        }
+
+        res.json({ success: true });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Server error' });
@@ -1716,6 +1789,10 @@ app.get('/transactions', (req, res) => {
 app.get('/transfer', (req, res) => {
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(__dirname, 'public', 'transfer.html'));
+});
+app.get('/family', (req, res) => {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(path.join(__dirname, 'public', 'family.html'));
 });
 app.get('/forgot-password', (req, res) => {
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
