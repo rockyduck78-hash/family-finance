@@ -321,7 +321,10 @@
 
     <div class="modal-overlay" id="customize-modal">
         <div class="modal modal-wide">
-            <h3>&#9881; Customize</h3>
+            <div class="modal-header">
+                <h3>&#9881; Customize</h3>
+                <button class="modal-close" onclick="closeCustomizeModal()">&#10005;</button>
+            </div>
             <div class="customize-section">
                 <h4>Layout Density</h4>
                 <div class="customize-options">
@@ -389,6 +392,26 @@
                 <div class="customize-options">
                     <button class="customize-option toggle-opt" data-group="showStats" data-value="true" onclick="toggleSection('showStats',this)"><span class="opt-icon">&#10003;</span>Stats</button>
                     <button class="customize-option toggle-opt" data-group="showCharts" data-value="true" onclick="toggleSection('showCharts',this)"><span class="opt-icon">&#10003;</span>Charts</button>
+                </div>
+            </div>
+            <div class="customize-section">
+                <h4>Background Color</h4>
+                <div class="bg-color-picker-wrap">
+                    <div class="bg-color-presets">
+                        <button class="bg-preset active" data-bg="#f9fafb" onclick="setBgColor('#f9fafb',this)" style="background:#f9fafb" title="Default"></button>
+                        <button class="bg-preset" data-bg="#f0f8ff" onclick="setBgColor('#f0f8ff',this)" style="background:#f0f8ff" title="Ice Blue"></button>
+                        <button class="bg-preset" data-bg="#fef3c7" onclick="setBgColor('#fef3c7',this)" style="background:#fef3c7" title="Cream"></button>
+                        <button class="bg-preset" data-bg="#dcfce7" onclick="setBgColor('#dcfce7',this)" style="background:#dcfce7" title="Mint"></button>
+                        <button class="bg-preset" data-bg="#ede9fe" onclick="setBgColor('#ede9fe',this)" style="background:#ede9fe" title="Lavender"></button>
+                        <button class="bg-preset" data-bg="#fce7f3" onclick="setBgColor('#fce7f3',this)" style="background:#fce7f3" title="Rose"></button>
+                        <button class="bg-preset" data-bg="#111827" onclick="setBgColor('#111827',this)" style="background:#111827" title="Dark"></button>
+                        <button class="bg-preset" data-bg="#0f172a" onclick="setBgColor('#0f172a',this)" style="background:#0f172a" title="Midnight"></button>
+                    </div>
+                    <div class="bg-custom-row">
+                        <input type="color" id="bg-color-picker" value="#f9fafb" onchange="setBgColor(this.value,null)" title="Pick any color">
+                        <input type="range" id="bg-brightness" min="0" max="100" value="100" oninput="adjustBgBrightness(this.value)" title="Brightness">
+                        <button class="btn btn-sm btn-secondary" onclick="resetBgColor()">Reset</button>
+                    </div>
                 </div>
             </div>
             <div class="modal-actions">

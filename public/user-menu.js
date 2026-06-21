@@ -45,7 +45,10 @@ const defaultSettings = {
     cardStyle: 'rounded',
     fontFamily: 'system',
     glowMode: false,
-    animatedBg: false
+    animatedBg: false,
+    bgColor: '#f9fafb',
+    bgBrightness: 100,
+    sectionOrder: ['stats', 'charts', 'recent']
 };
 
 const chartPalettes = {
@@ -101,6 +104,26 @@ function applyCustomization() {
 
     // Animated background
     document.body.classList.toggle('animated-bg', !!userSettings.animatedBg);
+
+    // Background color
+    if (userSettings.bgColor && userSettings.bgColor !== '#f9fafb') {
+        document.documentElement.style.setProperty('--bg-color', userSettings.bgColor);
+        document.body.style.background = userSettings.bgColor;
+    } else {
+        document.documentElement.style.removeProperty('--bg-color');
+        document.body.style.background = '';
+    }
+
+    // Background brightness
+    const brightness = userSettings.bgBrightness || 100;
+    if (brightness !== 100) {
+        document.body.style.filter = 'brightness(' + (brightness / 100) + ')';
+    } else {
+        document.body.style.filter = '';
+    }
+
+    // Section order (dashboard only)
+    applySectionOrder();
 
     const statsSection = document.querySelector('.stats-grid');
     const chartsSection = document.querySelector('.charts-grid');
@@ -342,3 +365,107 @@ async function forgetDevice() {
     localStorage.removeItem('ff-trusted');
     alert('This device has been forgotten. You will need to enter your 2FA code on next login.');
 }
+
+// Background Color
+function setBgColor(color, el) {
+    saveSetting('bgColor', color);
+    document.querySelectorAll('.bg-preset').forEach(b => b.classList.remove('active'));
+    if (el) el.classList.add('active');
+    const picker = document.getElementById('bg-color-picker');
+    if (picker) picker.value = color;
+}
+
+function adjustBgBrightness(val) {
+    saveSetting('bgBrightness', parseInt(val));
+}
+
+function resetBgColor() {
+    saveSetting('bgColor', '#f9fafb');
+    saveSetting('bgBrightness', 100);
+    document.getElementById('bg-color-picker').value = '#f9fafb';
+    document.getElementById('bg-brightness').value = 100;
+    document.querySelectorAll('.bg-preset').forEach(b => {
+        b.classList.toggle('active', b.dataset.bg === '#f9fafb');
+    });
+}
+
+// Section Order (Drag & Drop)
+function applySectionOrder() {
+    const list = document.getElementById('drag-section-list');
+    if (!list) return;
+    const order = userSettings.sectionOrder || ['stats', 'charts', 'recent'];
+    const container = document.querySelector('.dashboard-sections') || document.querySelector('.main-content');
+    if (!container) return;
+    const sections = {
+        stats: container.querySelector('.stats-grid'),
+        charts: container.querySelector('.charts-grid'),
+        recent: container.querySelector('.recent-section') || container.querySelector('.card:last-child')
+    };
+    order.forEach(key => {
+        if (sections[key]) container.appendChild(sections[key]);
+    });
+}
+
+function initDragAndDrop() {
+    const list = document.getElementById('drag-section-list');
+    if (!list) return;
+    let dragItem = null;
+
+    list.querySelectorAll('.drag-item').forEach(item => {
+        item.addEventListener('dragstart', (e) => {
+            dragItem = item;
+            item.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+
+        item.addEventListener('dragend', () => {
+            item.classList.remove('dragging');
+            list.querySelectorAll('.drag-item').forEach(i => i.classList.remove('drag-over'));
+            dragItem = null;
+        });
+
+        item.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            item.classList.add('drag-over');
+        });
+
+        item.addEventListener('dragleave', () => {
+            item.classList.remove('drag-over');
+        });
+
+        item.addEventListener('drop', (e) => {
+            e.preventDefault();
+            item.classList.remove('drag-over');
+            if (dragItem && dragItem !== item) {
+                const items = [...list.querySelectorAll('.drag-item')];
+                const fromIdx = items.indexOf(dragItem);
+                const toIdx = items.indexOf(item);
+                if (fromIdx < toIdx) {
+                    list.insertBefore(dragItem, item.nextSibling);
+                } else {
+                    list.insertBefore(dragItem, item);
+                }
+                const newOrder = [...list.querySelectorAll('.drag-item')].map(i => i.dataset.section);
+                saveSetting('sectionOrder', newOrder);
+            }
+        });
+    });
+}
+
+// Initialize drag-and-drop when customize modal opens
+const origShowCustomize = showCustomize;
+showCustomize = function() {
+    origShowCustomize();
+    setTimeout(() => {
+        initDragAndDrop();
+        // Sync background color presets
+        document.querySelectorAll('.bg-preset').forEach(b => {
+            b.classList.toggle('active', b.dataset.bg === userSettings.bgColor);
+        });
+        const bgPicker = document.getElementById('bg-color-picker');
+        if (bgPicker) bgPicker.value = userSettings.bgColor || '#f9fafb';
+        const bgBright = document.getElementById('bg-brightness');
+        if (bgBright) bgBright.value = userSettings.bgBrightness || 100;
+    }, 50);
+};
