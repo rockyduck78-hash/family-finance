@@ -143,10 +143,30 @@ const userSchema = new mongoose.Schema({
         description: { type: String },
         date: { type: String }
     }], default: [] },
+    familyGroupId: { type: mongoose.Schema.Types.ObjectId, default: null },
     settings: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);
+
+// Family Group Schema
+const familyGroupSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    code: { type: String, required: true, unique: true },
+    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    members: { type: [String], default: [] },
+    pendingTransactions: { type: [{
+        id: { type: Number },
+        fromUsername: { type: String },
+        toUsername: { type: String },
+        amount: { type: Number },
+        description: { type: String },
+        category: { type: String },
+        date: { type: String }
+    }], default: [] }
+}, { timestamps: true });
+
+const FamilyGroup = mongoose.model('FamilyGroup', familyGroupSchema);
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
@@ -855,6 +875,30 @@ app.post('/api/transfer', authLimiter, authMiddleware, async (req, res) => {
             return res.status(400).json({ error: 'Insufficient balance' });
         }
         
+        // Check if sender is in a family group - route through approval
+        if (sender.familyGroupId) {
+            const group = await FamilyGroup.findById(sender.familyGroupId);
+            if (group) {
+                const isOwner = group.ownerId.toString() === sender._id.toString();
+                if (!isOwner) {
+                    // Non-owner: add to pending transactions
+                    if (!group.pendingTransactions) group.pendingTransactions = [];
+                    group.pendingTransactions.push({
+                        id: Date.now(),
+                        fromUsername: from,
+                        toUsername: to,
+                        amount: amount,
+                        description: sanitize(note || 'Transfer'),
+                        category: 'transfer',
+                        date: new Date().toISOString()
+                    });
+                    await group.save();
+                    return res.json({ success: true, pending: true, message: 'Transfer sent for owner approval' });
+                }
+                // Owner transfers go through immediately
+            }
+        }
+        
         const now = new Date().toISOString();
         
         if (!sender.transactions) sender.transactions = [];
@@ -1186,6 +1230,262 @@ app.post('/api/user/:username/doublons-token', authMiddleware, ownerOnly, async 
         user.settings.doublonsToken = req.body.token || null;
         user.settings.doublonsEmail = req.body.email || null;
         await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ===== Family Group Endpoints =====
+
+// Generate a 6-character join code
+function generateJoinCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+}
+
+// Create a family group
+app.post('/api/family/create', authMiddleware, async (req, res) => {
+    try {
+        const { name } = req.body;
+        const username = req.authUser;
+        if (!name || name.trim().length < 2) return res.status(400).json({ error: 'Group name required (min 2 chars)' });
+
+        const user = await User.findOne({ username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (user.familyGroupId) return res.status(400).json({ error: 'Already in a family group. Leave first.' });
+
+        let code;
+        let exists = true;
+        while (exists) {
+            code = generateJoinCode();
+            exists = await FamilyGroup.findOne({ code });
+        }
+
+        const group = await FamilyGroup.create({
+            name: name.trim(),
+            code,
+            ownerId: user._id,
+            members: [username]
+        });
+
+        user.familyGroupId = group._id;
+        await user.save();
+
+        res.json({ success: true, group: { id: group._id, name: group.name, code } });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Join a family group
+app.post('/api/family/join', authMiddleware, async (req, res) => {
+    try {
+        const { code } = req.body;
+        const username = req.authUser;
+        if (!code) return res.status(400).json({ error: 'Join code required' });
+
+        const user = await User.findOne({ username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (user.familyGroupId) return res.status(400).json({ error: 'Already in a family group. Leave first.' });
+
+        const group = await FamilyGroup.findOne({ code: code.toUpperCase() });
+        if (!group) return res.status(404).json({ error: 'Invalid join code' });
+
+        if (!group.members.includes(username)) {
+            group.members.push(username);
+            await group.save();
+        }
+
+        user.familyGroupId = group._id;
+        await user.save();
+
+        res.json({ success: true, group: { id: group._id, name: group.name, code: group.code } });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get family group info
+app.get('/api/family/info', authMiddleware, async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.authUser });
+        if (!user || !user.familyGroupId) return res.json(null);
+
+        const group = await FamilyGroup.findById(user.familyGroupId);
+        if (!group) {
+            user.familyGroupId = null;
+            await user.save();
+            return res.json(null);
+        }
+
+        const isOwner = group.ownerId.toString() === user._id.toString();
+        res.json({
+            id: group._id,
+            name: group.name,
+            code: group.code,
+            isOwner,
+            memberCount: group.members.length,
+            pendingCount: group.pendingTransactions.length
+        });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get family group members
+app.get('/api/family/members', authMiddleware, async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.authUser });
+        if (!user || !user.familyGroupId) return res.status(400).json({ error: 'Not in a family group' });
+
+        const group = await FamilyGroup.findById(user.familyGroupId);
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+
+        res.json(group.members);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get pending transactions for approval (owner only)
+app.get('/api/family/pending', authMiddleware, async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.authUser });
+        if (!user || !user.familyGroupId) return res.status(400).json({ error: 'Not in a family group' });
+
+        const group = await FamilyGroup.findById(user.familyGroupId);
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+
+        const isOwner = group.ownerId.toString() === user._id.toString();
+        if (!isOwner) return res.status(403).json({ error: 'Only the group owner can view pending approvals' });
+
+        res.json(group.pendingTransactions);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Approve a pending transaction (owner only)
+app.post('/api/family/approve/:txId', authMiddleware, async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.authUser });
+        if (!user || !user.familyGroupId) return res.status(400).json({ error: 'Not in a family group' });
+
+        const group = await FamilyGroup.findById(user.familyGroupId);
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+
+        const isOwner = group.ownerId.toString() === user._id.toString();
+        if (!isOwner) return res.status(403).json({ error: 'Only the group owner can approve' });
+
+        const idx = group.pendingTransactions.findIndex(t => t.id === parseInt(req.params.txId));
+        if (idx === -1) return res.status(404).json({ error: 'Transaction not found' });
+
+        const tx = group.pendingTransactions[idx];
+
+        // Execute the transfer between users
+        const sender = await User.findOne({ username: tx.fromUsername });
+        const recipient = await User.findOne({ username: tx.toUsername });
+
+        if (!sender || !recipient) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const now = new Date().toISOString();
+        if (!sender.transactions) sender.transactions = [];
+        if (!recipient.transactions) recipient.transactions = [];
+
+        sender.transactions.push({
+            id: Date.now(),
+            description: tx.description,
+            amount: tx.amount,
+            type: 'expense',
+            category: tx.category || 'transfer',
+            date: now
+        });
+
+        recipient.transactions.push({
+            id: Date.now() + 1,
+            description: tx.description,
+            amount: tx.amount,
+            type: 'income',
+            category: tx.category || 'transfer',
+            date: now
+        });
+
+        await sender.save();
+        await recipient.save();
+
+        group.pendingTransactions.splice(idx, 1);
+        await group.save();
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Deny a pending transaction (owner only)
+app.post('/api/family/deny/:txId', authMiddleware, async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.authUser });
+        if (!user || !user.familyGroupId) return res.status(400).json({ error: 'Not in a family group' });
+
+        const group = await FamilyGroup.findById(user.familyGroupId);
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+
+        const isOwner = group.ownerId.toString() === user._id.toString();
+        if (!isOwner) return res.status(403).json({ error: 'Only the group owner can deny' });
+
+        const idx = group.pendingTransactions.findIndex(t => t.id === parseInt(req.params.txId));
+        if (idx === -1) return res.status(404).json({ error: 'Transaction not found' });
+
+        group.pendingTransactions.splice(idx, 1);
+        await group.save();
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Leave family group
+app.post('/api/family/leave', authMiddleware, async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.authUser });
+        if (!user || !user.familyGroupId) return res.status(400).json({ error: 'Not in a family group' });
+
+        const group = await FamilyGroup.findById(user.familyGroupId);
+        if (!group) {
+            user.familyGroupId = null;
+            await user.save();
+            return res.json({ success: true });
+        }
+
+        const isOwner = group.ownerId.toString() === user._id.toString();
+
+        // Remove user from members
+        group.members = group.members.filter(m => m !== req.authUser);
+        await group.save();
+
+        user.familyGroupId = null;
+        await user.save();
+
+        // If owner left, delete the group
+        if (isOwner && group.members.length === 0) {
+            await FamilyGroup.findByIdAndDelete(group._id);
+        }
+
         res.json({ success: true });
     } catch (err) {
         console.error(err.message);

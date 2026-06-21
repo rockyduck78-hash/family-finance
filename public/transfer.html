@@ -53,6 +53,53 @@
                 <p>Send or request money from family members</p>
             </div>
 
+            <!-- Family Group Section -->
+            <div class="card" id="family-card">
+                <div class="card-header">
+                    <span class="card-title">Family Group</span>
+                </div>
+                <div id="family-no-group" style="padding:16px;">
+                    <p style="margin-bottom:12px;color:var(--gray-400);">Create or join a family group to manage transfers with owner approval.</p>
+                    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:200px;">
+                            <h4 style="margin-bottom:8px;">Create Group</h4>
+                            <div class="form-group">
+                                <input type="text" id="family-create-name" placeholder="Family name">
+                            </div>
+                            <button class="btn btn-primary" onclick="createFamily()">Create</button>
+                        </div>
+                        <div style="flex:1;min-width:200px;">
+                            <h4 style="margin-bottom:8px;">Join Group</h4>
+                            <div class="form-group">
+                                <input type="text" id="family-join-code" placeholder="6-digit code" maxlength="6" style="text-transform:uppercase;">
+                            </div>
+                            <button class="btn btn-primary" onclick="joinFamily()">Join</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="family-has-group" style="padding:16px;display:none;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                        <div>
+                            <strong id="family-name-display"></strong>
+                            <span id="family-member-count" style="margin-left:8px;color:var(--gray-400);font-size:13px;"></span>
+                        </div>
+                        <button class="btn btn-sm btn-secondary" onclick="leaveFamily()">Leave Group</button>
+                    </div>
+                    <div id="family-code-display" style="margin-bottom:12px;padding:10px;background:var(--gray-800);border-radius:var(--radius);font-family:monospace;font-size:18px;text-align:center;letter-spacing:4px;"></div>
+                    <p style="font-size:12px;color:var(--gray-400);margin-bottom:0;">Share this code with family members to join</p>
+                </div>
+            </div>
+
+            <!-- Family Pending Approvals (owner only) -->
+            <div class="card" id="family-pending-card" style="display:none;">
+                <div class="card-header">
+                    <span class="card-title">Pending Approvals</span>
+                </div>
+                <div id="family-pending-list" style="padding:16px;">
+                    <div class="empty-state"><span class="icon">&#128276;</span><p>No pending transactions</p></div>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header">
                     <span class="card-title">Send Money</span>
@@ -257,20 +304,109 @@
         let dogWalks = 1;
 
         async function loadData() {
-            const [userData, usersData, requestsData] = await Promise.all([
+            const [userData, usersData, requestsData, familyData] = await Promise.all([
                 apiGet('/api/user/' + user),
                 apiGet('/api/users'),
-                apiGet('/api/user/' + user + '/requests')
+                apiGet('/api/user/' + user + '/requests'),
+                apiGet('/api/family/info')
             ]);
             transactions = userData.transactions || [];
             allUsers = (usersData || []).filter(u => u !== user);
             renderUserDropdowns();
             renderTransfers();
             renderRequests(requestsData || []);
+            renderFamilyGroup(familyData);
         }
 
         function fmt(n) {
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+        }
+
+        // ===== Family Group =====
+        async function renderFamilyGroup(data) {
+            const noGroup = document.getElementById('family-no-group');
+            const hasGroup = document.getElementById('family-has-group');
+            const pendingCard = document.getElementById('family-pending-card');
+
+            if (!data) {
+                noGroup.style.display = 'block';
+                hasGroup.style.display = 'none';
+                pendingCard.style.display = 'none';
+                return;
+            }
+
+            noGroup.style.display = 'none';
+            hasGroup.style.display = 'block';
+            document.getElementById('family-name-display').textContent = data.name;
+            document.getElementById('family-member-count').textContent = data.memberCount + ' member' + (data.memberCount !== 1 ? 's' : '');
+            document.getElementById('family-code-display').textContent = data.code;
+
+            if (data.isOwner) {
+                pendingCard.style.display = 'block';
+                loadFamilyPending();
+            } else {
+                pendingCard.style.display = 'none';
+            }
+        }
+
+        async function loadFamilyPending() {
+            const data = await apiGet('/api/family/pending');
+            const list = document.getElementById('family-pending-list');
+            if (data.error || !Array.isArray(data) || !data.length) {
+                list.innerHTML = '<div class="empty-state"><span class="icon">&#128276;</span><p>No pending transactions</p></div>';
+                return;
+            }
+            list.innerHTML = data.map(t => `
+                <div class="transaction-item">
+                    <div class="transaction-left">
+                        <div class="transaction-icon">&#128276;</div>
+                        <div class="transaction-info">
+                            <h4>${escapeHtml(t.fromUsername)} → ${escapeHtml(t.toUsername)}: ${fmt(t.amount)}</h4>
+                            <span>${escapeHtml(t.description)} &middot; ${new Date(t.date).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-sm btn-primary" onclick="familyApprove('${t.id}')">Approve</button>
+                        <button class="btn btn-sm btn-secondary" onclick="familyDeny('${t.id}')">Deny</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function createFamily() {
+            const name = document.getElementById('family-create-name').value.trim();
+            if (!name) return alert('Enter a group name');
+            const data = await apiPost('/api/family/create', { name });
+            if (data.error) return alert(data.error);
+            loadData();
+        }
+
+        async function joinFamily() {
+            const code = document.getElementById('family-join-code').value.trim().toUpperCase();
+            if (!code) return alert('Enter a join code');
+            const data = await apiPost('/api/family/join', { code });
+            if (data.error) return alert(data.error);
+            loadData();
+        }
+
+        async function leaveFamily() {
+            if (!confirm('Leave your family group?')) return;
+            const data = await apiPost('/api/family/leave', {});
+            if (data.error) return alert(data.error);
+            loadData();
+        }
+
+        async function familyApprove(id) {
+            const data = await apiPost('/api/family/approve/' + id, {});
+            if (data.error) return alert(data.error);
+            loadFamilyPending();
+            loadData();
+        }
+
+        async function familyDeny(id) {
+            const data = await apiPost('/api/family/deny/' + id, {});
+            if (data.error) return alert(data.error);
+            loadFamilyPending();
         }
 
         function renderUserDropdowns() {
@@ -440,7 +576,11 @@
                 from: user, to, amount, note
             });
             if (data.error) return alert(data.error);
-            alert('Sent $' + amount.toFixed(2) + ' to ' + to);
+            if (data.pending) {
+                alert('Transfer pending owner approval');
+            } else {
+                alert('Sent $' + amount.toFixed(2) + ' to ' + to);
+            }
             e.target.reset();
             document.getElementById('transfer-type').value = 'custom';
             document.getElementById('preset-options').style.display = 'none';
