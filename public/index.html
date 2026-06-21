@@ -157,6 +157,7 @@
             if (pendingLogin && code) {
                 const res = await fetch(`/api/user/${pendingLogin}/2fa/login`, {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + pendingTempToken },
                     body: JSON.stringify({ code })
                 });
@@ -169,7 +170,8 @@
             }
 
             const res = await fetch('/api/login', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })
             });
             const data = await res.json();
@@ -193,7 +195,8 @@
             const password = document.getElementById('reg-password').value;
             if (!username || !password || !email) return alert('Please fill in all fields');
             const res = await fetch('/api/register', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password, email })
             });
             const data = await res.json();

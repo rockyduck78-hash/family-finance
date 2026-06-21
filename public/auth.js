@@ -49,7 +49,7 @@ function formatCurrency(amount) {
 }
 
 async function apiGet(url) {
-    const res = await fetch(API + url, { headers: authHeaders() });
+    const res = await fetch(API + url, { credentials: 'same-origin', headers: authHeaders() });
     if (res.status === 401) { clearUser(); window.location.href = '/'; return { error: 'Session expired' }; }
     return res.json();
 }
@@ -57,6 +57,7 @@ async function apiGet(url) {
 async function apiPost(url, data) {
     const res = await fetch(API + url, {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(data)
     });
@@ -67,6 +68,7 @@ async function apiPost(url, data) {
 async function apiPut(url, data) {
     const res = await fetch(API + url, {
         method: 'PUT',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(data)
     });
@@ -77,6 +79,7 @@ async function apiPut(url, data) {
 async function apiDelete(url) {
     const res = await fetch(API + url, {
         method: 'DELETE',
+        credentials: 'same-origin',
         headers: authHeaders()
     });
     if (res.status === 401) { clearUser(); window.location.href = '/'; return { error: 'Session expired' }; }

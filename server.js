@@ -218,12 +218,12 @@ function verifyTrustedDeviceToken(token) {
 // Set trusted device cookie on response
 function setTrustedDeviceCookie(res, username) {
     const token = generateTrustedDeviceToken(username);
-    res.setHeader('Set-Cookie', `ff_trusted=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${TRUSTED_DEVICE_MAX_AGE / 1000}`);
+    res.setHeader('Set-Cookie', `ff_trusted=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${TRUSTED_DEVICE_MAX_AGE / 1000}`);
 }
 
 // Clear trusted device cookie
 function clearTrustedDeviceCookie(res) {
-    res.setHeader('Set-Cookie', 'ff_trusted=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0');
+    res.setHeader('Set-Cookie', 'ff_trusted=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
 }
 
 // Log MongoDB connection state for API calls
