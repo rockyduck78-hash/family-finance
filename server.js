@@ -1250,7 +1250,7 @@ function generateJoinCode() {
 // Create a family group
 app.post('/api/family/create', authMiddleware, async (req, res) => {
     try {
-        const { name } = req.body;
+        const { name, customCode } = req.body;
         const username = req.authUser;
         if (!name || name.trim().length < 2) return res.status(400).json({ error: 'Group name required (min 2 chars)' });
 
@@ -1259,10 +1259,16 @@ app.post('/api/family/create', authMiddleware, async (req, res) => {
         if (user.familyGroupId) return res.status(400).json({ error: 'Already in a family group. Leave first.' });
 
         let code;
-        let exists = true;
-        while (exists) {
-            code = generateJoinCode();
-            exists = await FamilyGroup.findOne({ code });
+        if (customCode && customCode.trim().length >= 4) {
+            code = customCode.trim().toUpperCase();
+            const exists = await FamilyGroup.findOne({ code });
+            if (exists) return res.status(400).json({ error: 'Code already taken. Choose another.' });
+        } else {
+            let exists = true;
+            while (exists) {
+                code = generateJoinCode();
+                exists = await FamilyGroup.findOne({ code });
+            }
         }
 
         const group = await FamilyGroup.create({

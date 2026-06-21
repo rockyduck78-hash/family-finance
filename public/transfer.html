@@ -66,6 +66,9 @@
                             <div class="form-group">
                                 <input type="text" id="family-create-name" placeholder="Family name">
                             </div>
+                            <div class="form-group">
+                                <input type="text" id="family-create-code" placeholder="Custom code (optional, min 4 chars)" maxlength="20" style="text-transform:uppercase;">
+                            </div>
                             <button class="btn btn-primary" onclick="createFamily()">Create</button>
                         </div>
                         <div style="flex:1;min-width:200px;">
@@ -375,8 +378,9 @@
 
         async function createFamily() {
             const name = document.getElementById('family-create-name').value.trim();
+            const customCode = document.getElementById('family-create-code').value.trim();
             if (!name) return alert('Enter a group name');
-            const data = await apiPost('/api/family/create', { name });
+            const data = await apiPost('/api/family/create', { name, customCode });
             if (data.error) return alert(data.error);
             loadData();
         }
