@@ -176,11 +176,69 @@
                 <div class="card-header">
                     <span class="card-title">Doublons Bank</span>
                 </div>
-                <div style="padding:16px;">
-                    <p style="margin-bottom:12px;color:var(--gray-400);">Send or request money from people on Doublons Bank.</p>
-                    <a href="https://doublons-bank.vercel.app/contacts" target="_blank" rel="noopener" class="btn btn-primary" style="text-decoration:none;">
-                        Open Doublons Bank &#8599;
-                    </a>
+                <div id="doublons-section" style="padding:16px;">
+                    <div id="doublons-not-linked">
+                        <p style="margin-bottom:12px;color:var(--gray-400);">Link your Doublons Bank account to send or request money.</p>
+                        <div class="form-group">
+                            <label>Doublons Bank Email</label>
+                            <input type="email" id="doublons-email" placeholder="your@email.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Password</label>
+                            <input type="password" id="doublons-pw" placeholder="Password">
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn btn-primary" onclick="linkDoublons('login')">Link Account</button>
+                            <button class="btn btn-secondary" onclick="linkDoublons('register')">Create New</button>
+                        </div>
+                    </div>
+                    <div id="doublons-linked" style="display:none;">
+                        <p style="margin-bottom:8px;color:var(--gray-400);">Linked as: <strong id="doublons-linked-email"></strong></p>
+                        <div id="doublons-accounts" style="margin-bottom:16px;"></div>
+                        <div style="margin-bottom:16px;">
+                            <h4 style="margin-bottom:8px;">Send to Doublons Bank User</h4>
+                            <div class="form-group">
+                                <label>Your Account</label>
+                                <select id="doublons-from"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Recipient Account ID</label>
+                                <input type="text" id="doublons-to-id" placeholder="Account ID">
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Amount ($)</label>
+                                    <input type="number" id="doublons-amount" step="0.01" min="0.01" placeholder="0.00">
+                                </div>
+                                <div class="form-group">
+                                    <label>Note (optional)</label>
+                                    <input type="text" id="doublons-note" placeholder="For...">
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" onclick="sendDoublons()">Send Money</button>
+                        </div>
+                        <div>
+                            <h4 style="margin-bottom:8px;">Request from Doublons Bank User</h4>
+                            <div class="form-group">
+                                <label>Their Account ID</label>
+                                <input type="text" id="doublons-req-to" placeholder="Their account ID">
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Amount ($)</label>
+                                    <input type="number" id="doublons-req-amount" step="0.01" min="0.01" placeholder="0.00">
+                                </div>
+                                <div class="form-group">
+                                    <label>Reason</label>
+                                    <input type="text" id="doublons-req-desc" placeholder="For...">
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" onclick="requestDoublons()">Send Request</button>
+                        </div>
+                        <div style="margin-top:12px;">
+                            <button class="btn btn-sm btn-secondary" onclick="unlinkDoublons()">Unlink Account</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>
@@ -408,7 +466,103 @@
             e.target.reset();
         });
 
+        // ===== Doublons Bank Integration =====
+        async function loadDoublonsStatus() {
+            const data = await apiGet('/api/user/' + user);
+            const settings = data.settings || {};
+            if (settings.doublonsToken && settings.doublonsEmail) {
+                document.getElementById('doublons-not-linked').style.display = 'none';
+                document.getElementById('doublons-linked').style.display = 'block';
+                document.getElementById('doublons-linked-email').textContent = settings.doublonsEmail;
+                loadDoublonsAccounts(settings.doublonsToken);
+            } else {
+                document.getElementById('doublons-not-linked').style.display = 'block';
+                document.getElementById('doublons-linked').style.display = 'none';
+            }
+        }
+
+        async function loadDoublonsAccounts(token) {
+            const data = await apiPost('/api/doublons/accounts', { token });
+            const container = document.getElementById('doublons-accounts');
+            const fromSelect = document.getElementById('doublons-from');
+            if (data.error || !Array.isArray(data)) {
+                container.innerHTML = '<p style="color:var(--gray-400);">Could not load accounts. ' + (data.error || '') + '</p>';
+                return;
+            }
+            if (!data.length) {
+                container.innerHTML = '<p style="color:var(--gray-400);">No accounts found. Create one on <a href="https://doublons-bank.vercel.app" target="_blank">Doublons Bank</a>.</p>';
+                return;
+            }
+            container.innerHTML = data.map(a => `
+                <div class="transaction-item">
+                    <div class="transaction-left">
+                        <div class="transaction-icon">&#127974;</div>
+                        <div class="transaction-info">
+                            <h4>${escapeHtml(a.name)}</h4>
+                            <span>ID: ${a.id} &middot; ${a.currency}</span>
+                        </div>
+                    </div>
+                    <span class="transaction-amount income">${fmt(a.balance || 0)}</span>
+                </div>
+            `).join('');
+            fromSelect.innerHTML = data.map(a => `<option value="${a.id}">${escapeHtml(a.name)} (${fmt(a.balance || 0)})</option>`).join('');
+        }
+
+        async function linkDoublons(action) {
+            const email = document.getElementById('doublons-email').value.trim();
+            const password = document.getElementById('doublons-pw').value;
+            if (!email || !password) return alert('Fill in all fields');
+            const endpoint = action === 'register' ? '/api/doublons/register' : '/api/doublons/login';
+            const data = await apiPost(endpoint, { email, password });
+            if (data.error) return alert(data.error);
+            const token = data.token;
+            if (!token) return alert('No token received');
+            await apiPost('/api/user/' + user + '/doublons-token', { token, email });
+            loadDoublonsStatus();
+        }
+
+        async function unlinkDoublons() {
+            if (!confirm('Unlink Doublons Bank account?')) return;
+            await apiPost('/api/user/' + user + '/doublons-token', { token: null, email: null });
+            loadDoublonsStatus();
+        }
+
+        async function sendDoublons() {
+            const settings = (await apiGet('/api/user/' + user)).settings || {};
+            const token = settings.doublonsToken;
+            if (!token) return alert('Link your Doublons Bank account first');
+            const from_id = document.getElementById('doublons-from').value;
+            const to_id = document.getElementById('doublons-to-id').value.trim();
+            const amount = parseFloat(document.getElementById('doublons-amount').value);
+            if (!from_id || !to_id || !amount) return alert('Fill in all fields');
+            const data = await apiPost('/api/doublons/transfer', { token, from_id, to_id, amount });
+            if (data.error) return alert(data.error);
+            alert('Sent $' + amount.toFixed(2) + ' via Doublons Bank!');
+            document.getElementById('doublons-to-id').value = '';
+            document.getElementById('doublons-amount').value = '';
+            document.getElementById('doublons-note').value = '';
+            loadDoublonsAccounts(token);
+        }
+
+        async function requestDoublons() {
+            const to_id = document.getElementById('doublons-req-to').value.trim();
+            const amount = parseFloat(document.getElementById('doublons-req-amount').value);
+            const desc = document.getElementById('doublons-req-desc').value.trim();
+            if (!to_id || !amount) return alert('Fill in all fields');
+            const data = await apiPost('/api/user/' + user + '/request-money', {
+                toUsername: '[Doublons:' + to_id + ']',
+                amount,
+                description: desc || 'Doublons Bank request'
+            });
+            if (data.error) return alert(data.error);
+            alert('Request created! Share account ID ' + to_id + ' with the recipient on Doublons Bank.');
+            document.getElementById('doublons-req-to').value = '';
+            document.getElementById('doublons-req-amount').value = '';
+            document.getElementById('doublons-req-desc').value = '';
+        }
+
         loadData();
+        loadDoublonsStatus();
     </script>
 
     <!-- Change Password Modal -->

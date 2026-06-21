@@ -1109,6 +1109,118 @@ app.put('/api/user/:username/settings', authMiddleware, ownerOnly, async (req, r
     }
 });
 
+// ===== Doublons Bank Integration =====
+const DOUBLONS_API = 'https://doublons-bank.vercel.app';
+
+// Proxy: Register on Doublons Bank
+app.post('/api/doublons/register', authLimiter, authMiddleware, async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+        const r = await fetch(DOUBLONS_API + '/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await r.json();
+        if (!r.ok) return res.status(r.status).json(data);
+        res.json(data);
+    } catch (err) {
+        console.error('Doublons register error:', err.message);
+        res.status(502).json({ error: 'Doublons Bank unavailable' });
+    }
+});
+
+// Proxy: Login to Doublons Bank
+app.post('/api/doublons/login', authLimiter, authMiddleware, async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+        const r = await fetch(DOUBLONS_API + '/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await r.json();
+        if (!r.ok) return res.status(r.status).json(data);
+        res.json(data);
+    } catch (err) {
+        console.error('Doublons login error:', err.message);
+        res.status(502).json({ error: 'Doublons Bank unavailable' });
+    }
+});
+
+// Proxy: Get Doublons Bank accounts
+app.post('/api/doublons/accounts', authLimiter, authMiddleware, async (req, res) => {
+    try {
+        const { token } = req.body;
+        if (!token) return res.status(400).json({ error: 'Token required' });
+        const r = await fetch(DOUBLONS_API + '/accounts', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await r.json();
+        if (!r.ok) return res.status(r.status).json(data);
+        res.json(data);
+    } catch (err) {
+        console.error('Doublons accounts error:', err.message);
+        res.status(502).json({ error: 'Doublons Bank unavailable' });
+    }
+});
+
+// Proxy: Create Doublons Bank account
+app.post('/api/doublons/accounts/create', authLimiter, authMiddleware, async (req, res) => {
+    try {
+        const { token, name } = req.body;
+        if (!token || !name) return res.status(400).json({ error: 'Token and name required' });
+        const r = await fetch(DOUBLONS_API + '/accounts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ name, currency: 'USD' })
+        });
+        const data = await r.json();
+        if (!r.ok) return res.status(r.status).json(data);
+        res.json(data);
+    } catch (err) {
+        console.error('Doublons create account error:', err.message);
+        res.status(502).json({ error: 'Doublons Bank unavailable' });
+    }
+});
+
+// Proxy: Transfer on Doublons Bank
+app.post('/api/doublons/transfer', authLimiter, authMiddleware, async (req, res) => {
+    try {
+        const { token, from_id, to_id, amount } = req.body;
+        if (!token || !from_id || !to_id || !amount) return res.status(400).json({ error: 'All fields required' });
+        const r = await fetch(DOUBLONS_API + '/transfers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ from_id, to_id, amount: amount.toString(), currency: 'USD' })
+        });
+        const data = await r.json();
+        if (!r.ok) return res.status(r.status).json(data);
+        res.json(data);
+    } catch (err) {
+        console.error('Doublons transfer error:', err.message);
+        res.status(502).json({ error: 'Doublons Bank unavailable' });
+    }
+});
+
+// Save Doublons Bank token to user profile
+app.post('/api/user/:username/doublons-token', authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!user.settings) user.settings = {};
+        user.settings.doublonsToken = req.body.token || null;
+        user.settings.doublonsEmail = req.body.email || null;
+        await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Forgot password - send reset code
 app.post('/api/forgot-password', forgotLimiter, async (req, res) => {
     try {
