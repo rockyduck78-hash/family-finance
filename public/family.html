@@ -331,6 +331,53 @@
                 </div>
             </div>
             <div class="customize-section">
+                <h4>Font Size</h4>
+                <div class="customize-options">
+                    <button class="customize-option" data-group="fontSize" data-value="small" onclick="setCustomOption('fontSize','small',this)"><span class="opt-icon">&#8722;</span>Small</button>
+                    <button class="customize-option" data-group="fontSize" data-value="medium" onclick="setCustomOption('fontSize','medium',this)"><span class="opt-icon">&#8722;</span>Medium</button>
+                    <button class="customize-option" data-group="fontSize" data-value="large" onclick="setCustomOption('fontSize','large',this)"><span class="opt-icon">&#43;</span>Large</button>
+                </div>
+            </div>
+            <div class="customize-section">
+                <h4>Font Family</h4>
+                <div class="customize-options">
+                    <button class="customize-option" data-group="fontFamily" data-value="system" onclick="setCustomOption('fontFamily','system',this)"><span class="opt-icon">&#9654;</span>System</button>
+                    <button class="customize-option" data-group="fontFamily" data-value="serif" onclick="setCustomOption('fontFamily','serif',this)"><span class="opt-icon">&#9998;</span>Serif</button>
+                    <button class="customize-option" data-group="fontFamily" data-value="mono" onclick="setCustomOption('fontFamily','mono',this)"><span class="opt-icon">&#9632;</span>Mono</button>
+                    <button class="customize-option" data-group="fontFamily" data-value="handwriting" onclick="setCustomOption('fontFamily','handwriting',this)"><span class="opt-icon">&#9998;</span>Hand</button>
+                </div>
+            </div>
+            <div class="customize-section">
+                <h4>Card Style</h4>
+                <div class="customize-options">
+                    <button class="customize-option" data-group="cardStyle" data-value="rounded" onclick="setCustomOption('cardStyle','rounded',this)"><span class="opt-icon">&#9711;</span>Rounded</button>
+                    <button class="customize-option" data-group="cardStyle" data-value="sharp" onclick="setCustomOption('cardStyle','sharp',this)"><span class="opt-icon">&#9632;</span>Sharp</button>
+                    <button class="customize-option" data-group="cardStyle" data-value="glass" onclick="setCustomOption('cardStyle','glass',this)"><span class="opt-icon">&#9672;</span>Glass</button>
+                </div>
+            </div>
+            <div class="customize-section">
+                <h4>Accent Color</h4>
+                <div class="customize-options">
+                    <button class="customize-option" data-group="accentColor" data-value="#0060a9" onclick="setCustomOption('accentColor','#0060a9',this)"><span class="palette-swatch" style="background:#0060a9"></span>Blue</button>
+                    <button class="customize-option" data-group="accentColor" data-value="#22c55e" onclick="setCustomOption('accentColor','#22c55e',this)"><span class="palette-swatch" style="background:#22c55e"></span>Green</button>
+                    <button class="customize-option" data-group="accentColor" data-value="#e63946" onclick="setCustomOption('accentColor','#e63946',this)"><span class="palette-swatch" style="background:#e63946"></span>Red</button>
+                    <button class="customize-option" data-group="accentColor" data-value="#f59e0b" onclick="setCustomOption('accentColor','#f59e0b',this)"><span class="palette-swatch" style="background:#f59e0b"></span>Gold</button>
+                    <button class="customize-option" data-group="accentColor" data-value="#7b2cbf" onclick="setCustomOption('accentColor','#7b2cbf',this)"><span class="palette-swatch" style="background:#7b2cbf"></span>Purple</button>
+                    <button class="customize-option" data-group="accentColor" data-value="#ec4899" onclick="setCustomOption('accentColor','#ec4899',this)"><span class="palette-swatch" style="background:#ec4899"></span>Pink</button>
+                    <div class="form-group" style="margin-top:8px;margin-bottom:0;">
+                        <input type="color" id="accent-color-picker" value="#0060a9" onchange="setAccentColor(this.value)" style="width:40px;height:32px;border:none;cursor:pointer;">
+                        <span style="font-size:12px;color:var(--gray-400);margin-left:8px;">Custom</span>
+                    </div>
+                </div>
+            </div>
+            <div class="customize-section">
+                <h4>Effects</h4>
+                <div class="customize-options">
+                    <button class="customize-option toggle-opt" data-group="glowMode" data-value="true" onclick="toggleGlow(this)"><span class="opt-icon">&#10024;</span>Glow</button>
+                    <button class="customize-option toggle-opt" data-group="animatedBg" data-value="true" onclick="toggleAnimatedBg(this)"><span class="opt-icon">&#9730;</span>Animated BG</button>
+                </div>
+            </div>
+            <div class="customize-section">
                 <h4>Stats Layout</h4>
                 <div class="customize-options">
                     <button class="customize-option" data-group="statsLayout" data-value="grid" onclick="setCustomOption('statsLayout','grid',this)"><span class="opt-icon">&#9638;</span>Grid</button>

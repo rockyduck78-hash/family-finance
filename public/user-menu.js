@@ -39,7 +39,13 @@ const defaultSettings = {
     categoryChart: 'bar',
     colorPalette: 'default',
     showStats: true,
-    showCharts: true
+    showCharts: true,
+    fontSize: 'medium',
+    accentColor: '#0060a9',
+    cardStyle: 'rounded',
+    fontFamily: 'system',
+    glowMode: false,
+    animatedBg: false
 };
 
 const chartPalettes = {
@@ -73,6 +79,29 @@ function applyCustomization() {
     document.body.classList.remove('stats-grid-view', 'stats-list-view');
     document.body.classList.add(userSettings.statsLayout === 'list' ? 'stats-list-view' : 'stats-grid-view');
 
+    // Font size
+    document.body.classList.remove('font-small', 'font-medium', 'font-large');
+    document.body.classList.add('font-' + (userSettings.fontSize || 'medium'));
+
+    // Accent color
+    if (userSettings.accentColor) {
+        document.documentElement.style.setProperty('--accent', userSettings.accentColor);
+    }
+
+    // Card style
+    document.body.classList.remove('card-rounded', 'card-sharp', 'card-glass');
+    document.body.classList.add('card-' + (userSettings.cardStyle || 'rounded'));
+
+    // Font family
+    document.body.classList.remove('font-system', 'font-serif', 'font-mono', 'font-handwriting');
+    document.body.classList.add('font-' + (userSettings.fontFamily || 'system'));
+
+    // Glow mode
+    document.body.classList.toggle('glow-mode', !!userSettings.glowMode);
+
+    // Animated background
+    document.body.classList.toggle('animated-bg', !!userSettings.animatedBg);
+
     const statsSection = document.querySelector('.stats-grid');
     const chartsSection = document.querySelector('.charts-grid');
     if (statsSection) statsSection.style.display = userSettings.showStats ? '' : 'none';
@@ -99,9 +128,20 @@ function showCustomize() {
         const group = btn.dataset.group;
         const value = btn.dataset.value;
         if (group && value) {
-            btn.classList.toggle('active', String(userSettings[group]) === value);
+            if (group === 'accentColor') {
+                btn.classList.toggle('active', userSettings.accentColor === value);
+            } else if (group === 'glowMode') {
+                btn.classList.toggle('active', !!userSettings.glowMode);
+            } else if (group === 'animatedBg') {
+                btn.classList.toggle('active', !!userSettings.animatedBg);
+            } else {
+                btn.classList.toggle('active', String(userSettings[group]) === value);
+            }
         }
     });
+
+    const picker = document.getElementById('accent-color-picker');
+    if (picker) picker.value = userSettings.accentColor || '#0060a9';
 }
 
 function closeCustomizeModal() {
@@ -120,6 +160,22 @@ function toggleSection(group, el) {
     el.classList.toggle('active', next);
     el.dataset.value = String(next);
     saveSetting(group, next);
+}
+
+function setAccentColor(color) {
+    saveSetting('accentColor', color);
+}
+
+function toggleGlow(el) {
+    const next = !userSettings.glowMode;
+    el.classList.toggle('active', next);
+    saveSetting('glowMode', next);
+}
+
+function toggleAnimatedBg(el) {
+    const next = !userSettings.animatedBg;
+    el.classList.toggle('active', next);
+    saveSetting('animatedBg', next);
 }
 
 // Change Password Modal
