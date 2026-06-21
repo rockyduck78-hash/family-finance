@@ -135,6 +135,14 @@ const userSchema = new mongoose.Schema({
         active: { type: Boolean, default: true },
         created: { type: String }
     }], default: [] },
+    pendingRequests: { type: [{
+        id: { type: Number },
+        fromUsername: { type: String },
+        toUsername: { type: String },
+        amount: { type: Number },
+        description: { type: String },
+        date: { type: String }
+    }], default: [] },
     settings: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: true });
 
@@ -892,6 +900,127 @@ app.post('/api/transfer', authLimiter, authMiddleware, async (req, res) => {
         await sender.save();
         await recipient.save();
         
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// List all usernames (for dropdowns)
+app.get('/api/users', authMiddleware, async (req, res) => {
+    try {
+        const users = await User.find({}, { username: 1, _id: 0 });
+        res.json(users.map(u => u.username));
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Request money from another user
+app.post('/api/user/:username/request-money', authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const { username } = req.params;
+        const { toUsername, amount, description } = req.body;
+
+        if (!toUsername) return res.status(400).json({ error: 'Recipient required' });
+        if (toUsername === username) return res.status(400).json({ error: "Can't request from yourself" });
+        if (!amount || isNaN(amount) || amount <= 0 || amount > 100000) return res.status(400).json({ error: 'Invalid amount' });
+
+        const recipient = await User.findOne({ username: toUsername });
+        if (!recipient) return res.status(404).json({ error: 'User not found' });
+
+        if (!recipient.pendingRequests) recipient.pendingRequests = [];
+
+        recipient.pendingRequests.push({
+            id: Date.now(),
+            fromUsername: username,
+            toUsername: toUsername,
+            amount: parseFloat(amount),
+            description: sanitize(description || 'Money request'),
+            date: new Date().toISOString()
+        });
+
+        await recipient.save();
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get pending requests for a user
+app.get('/api/user/:username/requests', authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        res.json(user.pendingRequests || []);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Approve a money request
+app.post('/api/user/:username/approve-request/:requestId', authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const { username, requestId } = req.params;
+        const user = await User.findOne({ username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const idx = (user.pendingRequests || []).findIndex(r => r.id === parseInt(requestId));
+        if (idx === -1) return res.status(404).json({ error: 'Request not found' });
+
+        const request = user.pendingRequests[idx];
+        const sender = await User.findOne({ username: request.fromUsername });
+        if (!sender) return res.status(404).json({ error: 'Requester not found' });
+
+        // Check sender has enough balance
+        const income = (sender.transactions || []).filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+        const expenses = (sender.transactions || []).filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+        if (request.amount > (income - expenses)) {
+            return res.status(400).json({ error: 'Requester has insufficient balance' });
+        }
+
+        const now = new Date().toISOString();
+        if (!sender.transactions) sender.transactions = [];
+        if (!user.transactions) user.transactions = [];
+
+        sender.transactions.push({
+            id: Date.now(),
+            description: `Sent to ${username}: ${request.description}`,
+            amount: request.amount, type: 'expense', category: 'transfer', date: now
+        });
+
+        user.transactions.push({
+            id: Date.now() + 1,
+            description: `Received from ${request.fromUsername}: ${request.description}`,
+            amount: request.amount, type: 'income', category: 'transfer', date: now
+        });
+
+        user.pendingRequests.splice(idx, 1);
+        await sender.save();
+        await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Deny a money request
+app.post('/api/user/:username/deny-request/:requestId', authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const { username, requestId } = req.params;
+        const user = await User.findOne({ username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const idx = (user.pendingRequests || []).findIndex(r => r.id === parseInt(requestId));
+        if (idx === -1) return res.status(404).json({ error: 'Request not found' });
+
+        user.pendingRequests.splice(idx, 1);
+        await user.save();
         res.json({ success: true });
     } catch (err) {
         console.error(err.message);

@@ -51,7 +51,7 @@
         <main class="main-content">
             <div class="page-header">
                 <h1>Transfer</h1>
-                <p>Send money to another family member</p>
+                <p>Send or request money from family members</p>
             </div>
 
             <div class="card">
@@ -60,8 +60,10 @@
                 </div>
                 <form id="transfer-form">
                     <div class="form-group">
-                        <label>Recipient Username</label>
-                        <input type="text" id="transfer-to" placeholder="Enter username" required>
+                        <label>Recipient</label>
+                        <select id="transfer-to" required>
+                            <option value="">Select a user...</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label>Type</label>
@@ -135,6 +137,40 @@
                     <div class="empty-state"><span class="icon">&#8644;</span><p>No transfers yet</p></div>
                 </div>
             </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Request Money</span>
+                </div>
+                <form id="request-form">
+                    <div class="form-group">
+                        <label>Request From</label>
+                        <select id="request-to" required>
+                            <option value="">Select a user...</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Amount ($)</label>
+                            <input type="number" id="request-amount" step="0.01" min="0.01" placeholder="0.00" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Reason (optional)</label>
+                            <input type="text" id="request-desc" placeholder="e.g., For groceries">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Send Request</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Pending Requests</span>
+                </div>
+                <div id="requests-list">
+                    <div class="empty-state"><span class="icon">&#128276;</span><p>No pending requests</p></div>
+                </div>
+            </div>
         </main>
     </div>
 
@@ -146,18 +182,40 @@
         initUserMenu(user);
 
         let transactions = [];
+        let allUsers = [];
         let videoGameHours = 1;
         let gymMachines = 1;
         let dogWalks = 1;
 
         async function loadData() {
-            const data = await apiGet('/api/user/' + user);
-            transactions = data.transactions || [];
+            const [userData, usersData, requestsData] = await Promise.all([
+                apiGet('/api/user/' + user),
+                apiGet('/api/users'),
+                apiGet('/api/user/' + user + '/requests')
+            ]);
+            transactions = userData.transactions || [];
+            allUsers = (usersData || []).filter(u => u !== user);
+            renderUserDropdowns();
             renderTransfers();
+            renderRequests(requestsData || []);
         }
 
         function fmt(n) {
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+        }
+
+        function renderUserDropdowns() {
+            const transferSel = document.getElementById('transfer-to');
+            const requestSel = document.getElementById('request-to');
+            const transferVal = transferSel.value;
+            const requestVal = requestSel.value;
+
+            const options = allUsers.map(u => `<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
+            transferSel.innerHTML = '<option value="">Select a user...</option>' + options;
+            requestSel.innerHTML = '<option value="">Select a user...</option>' + options;
+
+            if (allUsers.includes(transferVal)) transferSel.value = transferVal;
+            if (allUsers.includes(requestVal)) requestSel.value = requestVal;
         }
 
         function calcVideoGameAmount(hours) {
@@ -267,11 +325,47 @@
             `).join('');
         }
 
+        function renderRequests(requests) {
+            const list = document.getElementById('requests-list');
+            if (!requests.length) {
+                list.innerHTML = '<div class="empty-state"><span class="icon">&#128276;</span><p>No pending requests</p></div>';
+                return;
+            }
+            list.innerHTML = requests.map(r => `
+                <div class="transaction-item">
+                    <div class="transaction-left">
+                        <div class="transaction-icon">&#128276;</div>
+                        <div class="transaction-info">
+                            <h4>${escapeHtml(r.fromUsername)} requests ${fmt(r.amount)}</h4>
+                            <span>${escapeHtml(r.description)} &middot; ${new Date(r.date).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-sm btn-primary" onclick="approveRequest('${r.id}')">Approve</button>
+                        <button class="btn btn-sm btn-secondary" onclick="denyRequest('${r.id}')">Deny</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function approveRequest(id) {
+            const data = await apiPost('/api/user/' + user + '/approve-request/' + id, {});
+            if (data.error) return alert(data.error);
+            loadData();
+        }
+
+        async function denyRequest(id) {
+            const data = await apiPost('/api/user/' + user + '/deny-request/' + id, {});
+            if (data.error) return alert(data.error);
+            loadData();
+        }
+
         document.getElementById('transfer-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const to = document.getElementById('transfer-to').value.trim();
+            const to = document.getElementById('transfer-to').value;
             const amount = parseFloat(document.getElementById('transfer-amount').value);
             const note = document.getElementById('transfer-note').value.trim();
+            if (!to) return alert('Select a recipient');
             if (to === user) return alert("Can't send to yourself");
             const data = await apiPost('/api/transfer', {
                 from: user, to, amount, note
@@ -286,6 +380,20 @@
             gymMachines = 1;
             dogWalks = 1;
             loadData();
+        });
+
+        document.getElementById('request-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const toUsername = document.getElementById('request-to').value;
+            const amount = parseFloat(document.getElementById('request-amount').value);
+            const description = document.getElementById('request-desc').value.trim();
+            if (!toUsername) return alert('Select a user to request from');
+            const data = await apiPost('/api/user/' + user + '/request-money', {
+                toUsername, amount, description
+            });
+            if (data.error) return alert(data.error);
+            alert('Request sent to ' + toUsername);
+            e.target.reset();
         });
 
         loadData();
