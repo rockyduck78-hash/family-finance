@@ -1,0 +1,9 @@
+node_modules
+.git
+.github
+*.log
+.env
+render.yaml
+start.bat
+Dockerfile
+.dockerignore

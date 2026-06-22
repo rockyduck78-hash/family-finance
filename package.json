@@ -2,9 +2,10 @@
   "name": "family-finance-tracker",
   "version": "1.0.0",
   "description": "Family Finance Tracker",
-  "main": "server.js",
+  "main": "api/index.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "vercel-build": "echo 'Build complete'"
   },
   "engines": {
     "node": ">=18.0.0"
