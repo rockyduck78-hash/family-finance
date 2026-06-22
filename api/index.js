@@ -20,7 +20,7 @@ ensureModules().catch(console.error);
 
 const app = express();
 
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URI = process.env.MONGODB_URI || '';
 
 if (!process.env.JWT_SECRET) {
     console.warn('WARNING: JWT_SECRET not set. Generating a random secret. Set JWT_SECRET env var for persistent sessions.');
@@ -1346,10 +1346,14 @@ app.get('/health', async (req, res) => {
     try {
         await connectMongo();
     } catch (e) {}
+    const uri = process.env.MONGODB_URI || '';
     res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
-        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+        hasUri: uri.length > 0,
+        uriLength: uri.length,
+        uriPrefix: uri.substring(0, 20)
     });
 });
 
