@@ -1346,14 +1346,10 @@ app.get('/health', async (req, res) => {
     try {
         await connectMongo();
     } catch (e) {}
-    const uri = process.env.MONGODB_URI || '';
     res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
-        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-        hasUri: uri.length > 0,
-        uriLength: uri.length,
-        uriPrefix: uri.substring(0, 20)
+        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
     });
 });
 
