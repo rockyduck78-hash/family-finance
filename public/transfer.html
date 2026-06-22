@@ -236,7 +236,7 @@
                             <li>Send/receive money between Family Finance and Doublons Bank</li>
                         </ul>
                     </div>
-                    <a id="doublons-link" href="https://family-payments.vercel.app" target="_blank" class="btn btn-primary" style="display:inline-block;text-decoration:none;">Open Payment Processor</a>
+                    <a id="doublons-link" href="https://family-payments-beta.vercel.app" target="_blank" class="btn btn-primary" style="display:inline-block;text-decoration:none;">Open Payment Processor</a>
                     <p style="margin-top:12px;color:var(--gray-500);font-size:0.85em;">Opens in a new tab. Use your Family Finance credentials to log in.</p>
                 </div>
             </div>
@@ -273,7 +273,7 @@
             // Set payment processor link with token
             const token = localStorage.getItem('token');
             if (token) {
-                document.getElementById('doublons-link').href = 'https://family-payments.vercel.app?token=' + encodeURIComponent(token);
+                document.getElementById('doublons-link').href = 'https://family-payments-beta.vercel.app?token=' + encodeURIComponent(token);
             }
         }
 
