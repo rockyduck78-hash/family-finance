@@ -1,23 +1,12 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "api/index.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "public/**",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/public/$1"
-    }
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index.js" },
+    { "source": "/dashboard", "destination": "/api/index.js" },
+    { "source": "/transactions", "destination": "/api/index.js" },
+    { "source": "/transfer", "destination": "/api/index.js" },
+    { "source": "/family", "destination": "/api/index.js" },
+    { "source": "/forgot-password", "destination": "/api/index.js" },
+    { "source": "/health", "destination": "/api/index.js" }
   ]
 }

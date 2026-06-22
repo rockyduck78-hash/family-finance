@@ -1329,7 +1329,27 @@ app.post('/api/user/:username/2fa/login', async (req, res) => {
     }
 });
 
-// Catch-all: serve index.html for non-API, non-static routes
+// Health check
+app.get('/health', async (req, res) => {
+    try {
+        await connectMongo();
+    } catch (e) {}
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    });
+});
+
+// Page routes
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
+app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'dashboard.html')));
+app.get('/transactions', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'transactions.html')));
+app.get('/transfer', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'transfer.html')));
+app.get('/family', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'family.html')));
+app.get('/forgot-password', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'forgot-password.html')));
+
+// Catch-all for unknown routes
 app.get('*', (req, res) => {
     if (req.path.startsWith('/api/')) {
         return res.status(404).json({ error: 'Not found' });
