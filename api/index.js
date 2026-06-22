@@ -4,11 +4,19 @@ const path = require('path');
 const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
-const { generateSecret, generateSync, verifySync, generateURI } = require('otplib');
-const QRCode = require('qrcode');
+let otplib;
+let QRCode;
+
+async function ensureModules() {
+    if (!otplib) otplib = await import('otplib');
+    if (!QRCode) QRCode = await import('qrcode');
+}
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
+
+// Eagerly load ESM modules
+ensureModules().catch(console.error);
 
 const app = express();
 
@@ -1235,6 +1243,7 @@ app.post('/api/forgot-username', forgotLimiter, async (req, res) => {
 // 2FA
 app.post('/api/user/:username/2fa/setup', authMiddleware, ownerOnly, async (req, res) => {
     try {
+        await ensureModules();
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
         if (user.twoFactorEnabled) return res.status(400).json({ error: '2FA is already enabled' });
@@ -1243,7 +1252,7 @@ app.post('/api/user/:username/2fa/setup', authMiddleware, ownerOnly, async (req,
         const otpauth = generateURI({ secret, issuer: 'Family Finance', label: user.email });
         user.twoFactorSecret = secret;
         await user.save();
-        const qrCodeUrl = await QRCode.toDataURL(otpauth);
+        const qrCodeUrl = await toDataURL(otpauth);
         res.json({ success: true, secret, qrCode: qrCodeUrl });
     } catch (err) {
         console.error(err.message);
@@ -1253,6 +1262,7 @@ app.post('/api/user/:username/2fa/setup', authMiddleware, ownerOnly, async (req,
 
 app.post('/api/user/:username/2fa/verify', authMiddleware, ownerOnly, async (req, res) => {
     try {
+        await ensureModules();
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
         if (user.twoFactorEnabled) return res.status(400).json({ error: '2FA is already enabled' });
@@ -1274,6 +1284,7 @@ app.post('/api/user/:username/2fa/verify', authMiddleware, ownerOnly, async (req
 
 app.post('/api/user/:username/2fa/disable', authMiddleware, ownerOnly, async (req, res) => {
     try {
+        await ensureModules();
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
         if (!user.twoFactorEnabled) return res.status(400).json({ error: '2FA is not enabled' });
@@ -1304,6 +1315,7 @@ app.post('/api/user/:username/2fa/disable', authMiddleware, ownerOnly, async (re
 
 app.post('/api/user/:username/2fa/login', async (req, res) => {
     try {
+        await ensureModules();
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ error: 'Authentication required' });
         const token = authHeader.split(' ')[1];
