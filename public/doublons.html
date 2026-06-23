@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <title>Transactions - Family Finance</title>
+    <title>Doublons Bank - Family Finance</title>
     <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -16,11 +16,11 @@
             </a>
             <div class="topnav-nav">
                 <a href="/dashboard"><span class="nav-icon">&#9632;</span> <span class="nav-label">Dashboard</span></a>
-                <a href="/transactions" class="active"><span class="nav-icon">&#9655;</span> <span class="nav-label">Transactions</span></a>
+                <a href="/transactions"><span class="nav-icon">&#9655;</span> <span class="nav-label">Transactions</span></a>
                 <a href="/transfer"><span class="nav-icon">&#8644;</span> <span class="nav-label">Transfer</span></a>
                 <a href="/family"><span class="nav-icon">&#128106;</span> <span class="nav-label">Family</span></a>
                 <a href="/interbank"><span class="nav-icon">&#127974;</span> <span class="nav-label">Inter Bank</span></a>
-                <a href="/doublons"><span class="nav-icon">&#128176;</span> <span class="nav-label">Doublons</span></a>
+                <a href="/doublons" class="active"><span class="nav-icon">&#128176;</span> <span class="nav-label">Doublons</span></a>
             </div>
             <div class="topnav-right">
                 <div class="topnav-user" id="user-menu">
@@ -51,75 +51,106 @@
         </nav>
 
         <main class="main-content">
-            <!-- Content -->
-            <div id="transactions-content">
-                <div class="page-header">
-                    <h1>Transactions</h1>
-                    <p>Manage transactions and approve kid requests</p>
-                </div>
+            <div class="page-header">
+                <h1>Doublons Bank</h1>
+                <p>Manage your Doublons Bank accounts and transfers</p>
+            </div>
 
-                <!-- Pending Approvals -->
-                <div class="card" id="approvals-section">
-                    <div class="card-header">
-                        <span class="card-title">Pending Approvals <span class="badge" id="approval-count">0</span></span>
-                    </div>
-                    <div id="approvals-list">
-                        <div class="empty-state"><span class="icon">&#10003;</span><p>No pending approvals</p></div>
-                    </div>
+            <!-- Auth Section (shown when not logged in) -->
+            <div id="doublons-auth" class="card">
+                <div class="card-header">
+                    <span class="card-title">Login / Register</span>
                 </div>
-
-                <!-- Add Transaction -->
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">Add Transaction</span>
+                <div style="padding:16px;">
+                    <p style="margin-bottom:12px;color:var(--gray-400);">Connect to your Doublons Bank account or create a new one.</p>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="doublons-email" placeholder="your@email.com">
                     </div>
-                    <form id="transaction-form">
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Description</label>
-                                <input type="text" id="description" placeholder="e.g., Grocery shopping" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Amount ($)</label>
-                                <input type="number" id="amount" step="0.01" min="0.01" placeholder="0.00" required>
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Type</label>
-                                <select id="type">
-                                    <option value="expense">Expense</option>
-                                    <option value="income">Income</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Category</label>
-                                <select id="category">
-                                    <option value="general">General</option>
-                                    <option value="food">Food & Groceries</option>
-                                    <option value="utilities">Utilities</option>
-                                    <option value="entertainment">Entertainment</option>
-                                    <option value="transportation">Transportation</option>
-                                    <option value="savings">Savings</option>
-                                    <option value="kids">Kids</option>
-                                    <option value="other">Other</option>
-                                </select>
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Add Transaction</button>
-                    </form>
-                </div>
-
-                <!-- History -->
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">History</span>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="doublons-password" placeholder="Password">
                     </div>
-                    <div class="transaction-list" id="transactions-list">
-                        <div class="empty-state"><span class="icon">&#128221;</span><p>No transactions yet</p></div>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-primary" onclick="doublonsLogin()">Login</button>
+                        <button class="btn btn-secondary" onclick="doublonsRegister()">Register</button>
                     </div>
                 </div>
             </div>
+
+            <!-- Accounts Section (shown when logged in) -->
+            <div id="doublons-accounts" style="display:none;">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">My Accounts</span>
+                        <button class="btn btn-sm btn-secondary" onclick="doublonsLogout()">Logout</button>
+                    </div>
+                    <div id="doublons-accounts-list" style="padding:16px;">
+                        <div class="empty-state"><span class="icon">&#128176;</span><p>No accounts yet</p></div>
+                    </div>
+                </div>
+
+                <!-- Create Account -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Create Account</span>
+                    </div>
+                    <div style="padding:16px;">
+                        <div class="form-group">
+                            <label>Account Name</label>
+                            <input type="text" id="doublons-new-name" placeholder="e.g., Savings">
+                        </div>
+                        <button class="btn btn-primary" onclick="doublonsCreateAccount()">Create Account</button>
+                    </div>
+                </div>
+
+                <!-- Transfer Between Accounts -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Transfer Between Accounts</span>
+                    </div>
+                    <div style="padding:16px;">
+                        <div class="form-group">
+                            <label>From Account</label>
+                            <select id="doublons-from"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>To Account</label>
+                            <select id="doublons-to"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Amount ($)</label>
+                            <input type="number" id="doublons-amount" step="0.01" min="0.01" placeholder="0.00">
+                        </div>
+                        <button class="btn btn-primary" onclick="doublonsTransfer()">Transfer</button>
+                    </div>
+                </div>
+
+                <!-- Transfer to Family Finance -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Transfer to Family Finance</span>
+                    </div>
+                    <div style="padding:16px;">
+                        <p style="margin-bottom:12px;color:var(--gray-400);">Deposit from Doublons Bank into your Family Finance balance</p>
+                        <div class="form-group">
+                            <label>From Doublons Account</label>
+                            <select id="doublons-ff-from"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Amount ($)</label>
+                            <input type="number" id="doublons-ff-amount" step="0.01" min="0.01" placeholder="0.00">
+                        </div>
+                        <div class="form-group">
+                            <label>Note (optional)</label>
+                            <input type="text" id="doublons-ff-note" placeholder="e.g., Savings transfer">
+                        </div>
+                        <button class="btn btn-primary" onclick="doublonsToFfamilyFinance()">Deposit to Family Finance</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="doublons-status" style="margin-top:12px;padding:8px;border-radius:var(--radius);display:none;"></div>
         </main>
     </div>
 
@@ -130,147 +161,190 @@
         if (!user) window.location.href = '/';
         initUserMenu(user);
 
-        let transactions = [];
-        let pendingApprovals = [];
+        let doublonsToken = null;
+        let doublonsAccounts = [];
 
-        showTransactions();
-
-        async function showTransactions() {
-            document.getElementById('transactions-content').style.display = 'block';
-            await loadData();
+        function doublonsShowStatus(msg, isError) {
+            const el = document.getElementById('doublons-status');
+            el.style.display = 'block';
+            el.style.background = isError ? 'var(--red-900)' : 'var(--green-900)';
+            el.style.color = isError ? 'var(--red-200)' : 'var(--green-200)';
+            el.textContent = msg;
+            setTimeout(() => el.style.display = 'none', 5000);
         }
 
-        async function loadData() {
-            try {
-                    const data = await apiGet('/api/user/' + user);
-                if (data.error) {
-                    console.error('Load error:', data.error);
-                    return;
-                }
-                transactions = data.transactions || [];
-                pendingApprovals = data.pendingApprovals || [];
-                renderTransactions();
-                renderApprovals();
-            } catch (err) {
-                console.error('Failed to load data:', err);
+        function fmt(n) {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+        }
+
+        // Load saved token from user settings
+        async function loadDoublonsToken() {
+            const data = await apiGet('/api/user/' + user + '/settings');
+            if (data && data.doublonsToken) {
+                doublonsToken = data.doublonsToken;
+                showLoggedInState();
+                loadAccounts();
             }
         }
 
-        function renderApprovals() {
-            const list = document.getElementById('approvals-list');
-            document.getElementById('approval-count').textContent = pendingApprovals.length;
-            if (pendingApprovals.length === 0) {
-                list.innerHTML = '<div class="empty-state"><span class="icon">&#10003;</span><p>No pending approvals</p></div>';
+        function showLoggedInState() {
+            document.getElementById('doublons-auth').style.display = 'none';
+            document.getElementById('doublons-accounts').style.display = 'block';
+        }
+
+        function showLoggedOutState() {
+            document.getElementById('doublons-auth').style.display = 'block';
+            document.getElementById('doublons-accounts').style.display = 'none';
+        }
+
+        async function doublonsRegister() {
+            const email = document.getElementById('doublons-email').value.trim();
+            const password = document.getElementById('doublons-password').value;
+            if (!email || !password) return alert('Fill in all fields');
+
+            const data = await apiPost('/api/doublons/register', { email, password });
+            if (data.error) return doublonsShowStatus(data.error, true);
+            if (data.token) {
+                doublonsToken = data.token;
+                await saveToken(data.token, email);
+                showLoggedInState();
+                loadAccounts();
+                doublonsShowStatus('Account created and logged in', false);
+            }
+        }
+
+        async function doublonsLogin() {
+            const email = document.getElementById('doublons-email').value.trim();
+            const password = document.getElementById('doublons-password').value;
+            if (!email || !password) return alert('Fill in all fields');
+
+            const data = await apiPost('/api/doublons/login', { email, password });
+            if (data.error) return doublonsShowStatus(data.error, true);
+            if (data.token) {
+                doublonsToken = data.token;
+                await saveToken(data.token, email);
+                showLoggedInState();
+                loadAccounts();
+                doublonsShowStatus('Logged in', false);
+            }
+        }
+
+        async function saveToken(token, email) {
+            await apiPost('/api/user/' + user + '/doublons-token', { token, email });
+        }
+
+        async function doublonsLogout() {
+            doublonsToken = null;
+            doublonsAccounts = [];
+            await apiPost('/api/user/' + user + '/doublons-token', { token: null, email: null });
+            showLoggedOutState();
+        }
+
+        async function loadAccounts() {
+            if (!doublonsToken) return;
+            const data = await apiPost('/api/doublons/accounts', { token: doublonsToken });
+            if (data.error) return doublonsShowStatus(data.error, true);
+            doublonsAccounts = Array.isArray(data) ? data : (data.accounts || []);
+            renderAccounts();
+        }
+
+        function renderAccounts() {
+            const list = document.getElementById('doublons-accounts-list');
+            const fromSel = document.getElementById('doublons-from');
+            const toSel = document.getElementById('doublons-to');
+            const ffFromSel = document.getElementById('doublons-ff-from');
+
+            if (!doublonsAccounts.length) {
+                list.innerHTML = '<div class="empty-state"><span class="icon">&#128176;</span><p>No accounts yet</p></div>';
+                fromSel.innerHTML = '<option value="">No accounts</option>';
+                toSel.innerHTML = '<option value="">No accounts</option>';
+                ffFromSel.innerHTML = '<option value="">No accounts</option>';
                 return;
             }
-            list.innerHTML = pendingApprovals.map(a => {
-                const badgeClass = a.type === 'add' ? 'add' : a.type === 'kid-transfer' ? 'kid-transfer' : 'spend';
-                const label = a.type === 'add' ? 'Add Money' : a.type === 'kid-transfer' ? 'Kid Transfer' : 'Spend';
-                return `
-                    <div class="approval-item">
-                        <div class="approval-header">
-                            <strong>${escapeHtml(a.kidName || a.fromKidName + ' &#8594; ' + a.toKidName)}</strong>
-                            <span class="approval-badge ${badgeClass}">${label}</span>
-                        </div>
-                        <div class="approval-details">${escapeHtml(a.description)} &mdash; $${a.amount.toFixed(2)}</div>
-                        <div class="approval-actions">
-                            <button class="btn btn-success btn-small" onclick="approve(${a.id})">Approve</button>
-                            <button class="btn btn-danger btn-small" onclick="deny(${a.id})">Deny</button>
+
+            list.innerHTML = doublonsAccounts.map(a => `
+                <div class="transaction-item">
+                    <div class="transaction-left">
+                        <div class="transaction-icon">&#128176;</div>
+                        <div class="transaction-info">
+                            <h4>${escapeHtml(a.name)}</h4>
+                            <span>${escapeHtml(a.currency || 'USD')}</span>
                         </div>
                     </div>
-                `;
-            }).join('');
+                    <span class="transaction-amount income">${fmt(a.balance || 0)}</span>
+                </div>
+            `).join('');
+
+            const opts = doublonsAccounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)} (${fmt(a.balance || 0)})</option>`).join('');
+            fromSel.innerHTML = '<option value="">Select account...</option>' + opts;
+            toSel.innerHTML = '<option value="">Select account...</option>' + opts;
+            ffFromSel.innerHTML = '<option value="">Select account...</option>' + opts;
         }
 
-        async function approve(id) {
-            await apiPost('/api/user/' + user + '/approve/' + id, {});
-            loadData();
+        async function doublonsCreateAccount() {
+            const name = document.getElementById('doublons-new-name').value.trim();
+            if (!name) return alert('Enter an account name');
+            if (!doublonsToken) return alert('Not logged in');
+
+            const data = await apiPost('/api/doublons/accounts/create', { token: doublonsToken, name });
+            if (data.error) return doublonsShowStatus(data.error, true);
+            document.getElementById('doublons-new-name').value = '';
+            loadAccounts();
+            doublonsShowStatus('Account created', false);
         }
 
-        async function deny(id) {
-            await apiPost('/api/user/' + user + '/deny/' + id, {});
-            loadData();
+        async function doublonsTransfer() {
+            const fromId = document.getElementById('doublons-from').value;
+            const toId = document.getElementById('doublons-to').value;
+            const amount = parseFloat(document.getElementById('doublons-amount').value);
+            if (!fromId || !toId) return alert('Select both accounts');
+            if (fromId === toId) return alert('Select different accounts');
+            if (!amount || amount <= 0) return alert('Enter a valid amount');
+
+            const data = await apiPost('/api/doublons/transfer', { token: doublonsToken, from_id: fromId, to_id: toId, amount });
+            if (data.error) return doublonsShowStatus(data.error, true);
+            document.getElementById('doublons-amount').value = '';
+            loadAccounts();
+            doublonsShowStatus('Transfer complete', false);
         }
 
-        function formatCurrency(amount) {
-            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-        }
+        async function doublonsToFfamilyFinance() {
+            const fromId = document.getElementById('doublons-ff-from').value;
+            const amount = parseFloat(document.getElementById('doublons-ff-amount').value);
+            const note = document.getElementById('doublons-ff-note').value.trim();
+            if (!fromId) return alert('Select a Doublons account');
+            if (!amount || amount <= 0) return alert('Enter a valid amount');
 
-        function renderTransactions() {
-            const list = document.getElementById('transactions-list');
-            if (transactions.length === 0) {
-                list.innerHTML = '<div class="empty-state"><span class="icon">&#128221;</span><p>No transactions yet</p></div>';
-                return;
-            }
-            const sorted = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
-            list.innerHTML = sorted.map(t => `
-                    <div class="transaction-item">
-                        <div class="transaction-left">
-                            <div class="transaction-icon">${t.type === 'income' ? '&#8593;' : '&#8595;'}</div>
-                            <div class="transaction-info">
-                                <h4>${escapeHtml(t.description)}</h4>
-                                <span>${escapeHtml(t.category)} &bull; ${new Date(t.date).toLocaleDateString()}</span>
-                            </div>
-                        </div>
-                        <div class="transaction-right">
-                            <span class="transaction-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}</span>
-                            <button class="btn-ghost" onclick="deleteTransaction(${t.id})">&#10005;</button>
-                        </div>
-                    </div>
-                `).join('');
-        }
-
-        document.getElementById('transaction-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const newTx = {
-                id: Date.now(),
-                description: document.getElementById('description').value,
-                amount: parseFloat(document.getElementById('amount').value),
-                type: document.getElementById('type').value,
-                category: document.getElementById('category').value,
-                date: new Date().toISOString()
-            };
-
-            const btn = e.target.querySelector('button[type="submit"]');
-            btn.disabled = true;
-            btn.textContent = 'Saving...';
+            if (!confirm(`Deposit ${fmt(amount)} from Doublons Bank into Family Finance?`)) return;
 
             try {
-                const allTx = [...transactions, newTx];
-                const data = await apiPut('/api/user/' + user + '/transactions', { transactions: allTx });
-                if (data.error) {
-                    alert(data.error);
-                } else {
-                    await loadData();
-                    e.target.reset();
-                }
-            } catch (err) {
-                alert('Failed to save transaction');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Add Transaction';
-            }
-        });
+                // Step 1: Withdraw from Doublons Bank (transfer to a "Family Finance" receiver)
+                const txResult = await apiPost('/api/doublons/transfer', {
+                    token: doublonsToken,
+                    from_id: fromId,
+                    to_id: 'family-finance',
+                    amount
+                });
+                if (txResult.error) throw new Error(txResult.error);
 
-        async function deleteTransaction(id) {
-            const tx = transactions.find(t => t.id === id);
-            if (!tx) return;
-            if (!confirm('Delete "' + tx.description + '"?')) return;
-            const remaining = transactions.filter(t => t.id !== id);
-            try {
-                const data = await apiPut('/api/user/' + user + '/transactions', { transactions: remaining });
-                if (data.error) {
-                    alert(data.error);
-                } else {
-                    await loadData();
-                }
+                // Step 2: Deposit into Family Finance
+                const ffResult = await apiPost('/api/external/deposit', {
+                    username: user,
+                    amount,
+                    note: note || 'Doublons Bank transfer'
+                });
+                if (ffResult.error) throw new Error(ffResult.error);
+
+                document.getElementById('doublons-ff-amount').value = '';
+                document.getElementById('doublons-ff-note').value = '';
+                loadAccounts();
+                doublonsShowStatus(`Deposited ${fmt(amount)} into Family Finance`, false);
             } catch (err) {
-                alert('Failed to delete');
-                await loadData();
+                doublonsShowStatus(err.message, true);
             }
         }
 
+        loadDoublonsToken();
     </script>
 
     <!-- Change Password Modal -->

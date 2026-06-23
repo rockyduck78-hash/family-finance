@@ -1425,6 +1425,7 @@ app.get('/transactions', (req, res) => res.sendFile(path.join(__dirname, '..', '
 app.get('/transfer', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'transfer.html')));
 app.get('/family', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'family.html')));
 app.get('/interbank', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'interbank.html')));
+app.get('/doublons', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'doublons.html')));
 app.get('/forgot-password', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'forgot-password.html')));
 
 // Catch-all for unknown routes
