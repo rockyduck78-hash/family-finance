@@ -161,10 +161,13 @@
         if (!user) window.location.href = '/';
         initUserMenu(user);
 
+        const DB_API = 'https://doublons-bank.vercel.app';
+        const DB_API_KEY = 'dbl_sk_a0js30pyl3wsjrw5elbsvo755ub65piutqy3qnzw';
+
         let doublonsToken = null;
         let doublonsAccounts = [];
 
-        function doublonsShowStatus(msg, isError) {
+        function dbShowStatus(msg, isError) {
             const el = document.getElementById('doublons-status');
             el.style.display = 'block';
             el.style.background = isError ? 'var(--red-900)' : 'var(--green-900)';
@@ -177,7 +180,6 @@
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
         }
 
-        // Load saved token from user settings
         async function loadDoublonsToken() {
             const data = await apiGet('/api/user/' + user + '/settings');
             if (data && data.doublonsToken) {
@@ -202,14 +204,24 @@
             const password = document.getElementById('doublons-password').value;
             if (!email || !password) return alert('Fill in all fields');
 
-            const data = await apiPost('/api/doublons/register', { email, password });
-            if (data.error) return doublonsShowStatus(data.error, true);
-            if (data.token) {
-                doublonsToken = data.token;
-                await saveToken(data.token, email);
-                showLoggedInState();
-                loadAccounts();
-                doublonsShowStatus('Account created and logged in', false);
+            try {
+                const res = await fetch(DB_API + '/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + DB_API_KEY },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || data.message || 'Registration failed');
+
+                if (data.token) {
+                    doublonsToken = data.token;
+                    await saveToken(data.token, email);
+                    showLoggedInState();
+                    loadAccounts();
+                    dbShowStatus('Account created and logged in', false);
+                }
+            } catch (err) {
+                dbShowStatus(err.message, true);
             }
         }
 
@@ -218,14 +230,24 @@
             const password = document.getElementById('doublons-password').value;
             if (!email || !password) return alert('Fill in all fields');
 
-            const data = await apiPost('/api/doublons/login', { email, password });
-            if (data.error) return doublonsShowStatus(data.error, true);
-            if (data.token) {
-                doublonsToken = data.token;
-                await saveToken(data.token, email);
-                showLoggedInState();
-                loadAccounts();
-                doublonsShowStatus('Logged in', false);
+            try {
+                const res = await fetch(DB_API + '/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + DB_API_KEY },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || data.message || 'Login failed');
+
+                if (data.token) {
+                    doublonsToken = data.token;
+                    await saveToken(data.token, email);
+                    showLoggedInState();
+                    loadAccounts();
+                    dbShowStatus('Logged in', false);
+                }
+            } catch (err) {
+                dbShowStatus(err.message, true);
             }
         }
 
@@ -242,10 +264,17 @@
 
         async function loadAccounts() {
             if (!doublonsToken) return;
-            const data = await apiPost('/api/doublons/accounts', { token: doublonsToken });
-            if (data.error) return doublonsShowStatus(data.error, true);
-            doublonsAccounts = Array.isArray(data) ? data : (data.accounts || []);
-            renderAccounts();
+            try {
+                const res = await fetch(DB_API + '/accounts', {
+                    headers: { 'Authorization': 'Bearer ' + doublonsToken, 'X-API-Key': DB_API_KEY }
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || data.message || 'Failed to load accounts');
+                doublonsAccounts = Array.isArray(data) ? data : (data.accounts || []);
+                renderAccounts();
+            } catch (err) {
+                dbShowStatus(err.message, true);
+            }
         }
 
         function renderAccounts() {
@@ -286,11 +315,20 @@
             if (!name) return alert('Enter an account name');
             if (!doublonsToken) return alert('Not logged in');
 
-            const data = await apiPost('/api/doublons/accounts/create', { token: doublonsToken, name });
-            if (data.error) return doublonsShowStatus(data.error, true);
-            document.getElementById('doublons-new-name').value = '';
-            loadAccounts();
-            doublonsShowStatus('Account created', false);
+            try {
+                const res = await fetch(DB_API + '/accounts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + doublonsToken, 'X-API-Key': DB_API_KEY },
+                    body: JSON.stringify({ name, currency: 'USD' })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || data.message || 'Failed to create account');
+                document.getElementById('doublons-new-name').value = '';
+                loadAccounts();
+                dbShowStatus('Account created', false);
+            } catch (err) {
+                dbShowStatus(err.message, true);
+            }
         }
 
         async function doublonsTransfer() {
@@ -301,11 +339,20 @@
             if (fromId === toId) return alert('Select different accounts');
             if (!amount || amount <= 0) return alert('Enter a valid amount');
 
-            const data = await apiPost('/api/doublons/transfer', { token: doublonsToken, from_id: fromId, to_id: toId, amount });
-            if (data.error) return doublonsShowStatus(data.error, true);
-            document.getElementById('doublons-amount').value = '';
-            loadAccounts();
-            doublonsShowStatus('Transfer complete', false);
+            try {
+                const res = await fetch(DB_API + '/transfers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + doublonsToken, 'X-API-Key': DB_API_KEY },
+                    body: JSON.stringify({ from_id: fromId, to_id: toId, amount: amount.toString(), currency: 'USD' })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || data.message || 'Transfer failed');
+                document.getElementById('doublons-amount').value = '';
+                loadAccounts();
+                dbShowStatus('Transfer complete', false);
+            } catch (err) {
+                dbShowStatus(err.message, true);
+            }
         }
 
         async function doublonsToFfamilyFinance() {
@@ -318,16 +365,16 @@
             if (!confirm(`Deposit ${fmt(amount)} from Doublons Bank into Family Finance?`)) return;
 
             try {
-                // Step 1: Withdraw from Doublons Bank (transfer to a "Family Finance" receiver)
-                const txResult = await apiPost('/api/doublons/transfer', {
-                    token: doublonsToken,
-                    from_id: fromId,
-                    to_id: 'family-finance',
-                    amount
+                // Withdraw from Doublons Bank
+                const txRes = await fetch(DB_API + '/transfers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + doublonsToken, 'X-API-Key': DB_API_KEY },
+                    body: JSON.stringify({ from_id: fromId, to_id: 'family-finance', amount: amount.toString(), currency: 'USD' })
                 });
-                if (txResult.error) throw new Error(txResult.error);
+                const txData = await txRes.json();
+                if (!txRes.ok) throw new Error(txData.error || txData.message || 'Doublons Bank transfer failed');
 
-                // Step 2: Deposit into Family Finance
+                // Deposit into Family Finance
                 const ffResult = await apiPost('/api/external/deposit', {
                     username: user,
                     amount,
@@ -338,9 +385,9 @@
                 document.getElementById('doublons-ff-amount').value = '';
                 document.getElementById('doublons-ff-note').value = '';
                 loadAccounts();
-                doublonsShowStatus(`Deposited ${fmt(amount)} into Family Finance`, false);
+                dbShowStatus(`Deposited ${fmt(amount)} into Family Finance`, false);
             } catch (err) {
-                doublonsShowStatus(err.message, true);
+                dbShowStatus(err.message, true);
             }
         }
 
