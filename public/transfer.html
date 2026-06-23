@@ -222,22 +222,118 @@
                 </div>
             </div>
 
+            <!-- Doublons Bank Integration -->
             <div class="card">
                 <div class="card-header">
                     <span class="card-title">Doublons Bank</span>
                 </div>
                 <div id="doublons-section" style="padding:16px;">
-                    <p style="margin-bottom:12px;color:var(--gray-400);">Send and receive money from Doublons Bank users through our secure payment processor.</p>
-                    <div style="background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;padding:16px;margin-bottom:16px;">
-                        <h4 style="margin-bottom:8px;color:var(--accent);">How it works</h4>
-                        <ul style="color:var(--gray-400);padding-left:20px;line-height:1.8;">
-                            <li>Create a payment account on the Payment Processor</li>
-                            <li>Link your Doublons Bank account</li>
-                            <li>Send/receive money between Family Finance and Doublons Bank</li>
-                        </ul>
+                    <!-- Not connected state -->
+                    <div id="doublons-not-connected">
+                        <p style="margin-bottom:12px;color:var(--gray-400);">Connect your Doublons Bank account to send and receive money.</p>
+                        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                            <div style="flex:1;min-width:200px;">
+                                <h4 style="margin-bottom:8px;">Sign In</h4>
+                                <div class="form-group">
+                                    <input type="email" id="db-email" placeholder="Email">
+                                </div>
+                                <div class="form-group">
+                                    <input type="password" id="db-password" placeholder="Password">
+                                </div>
+                                <div style="display:flex;gap:8px;">
+                                    <button class="btn btn-primary" onclick="doublonsLogin()">Sign In</button>
+                                    <button class="btn btn-secondary" onclick="doublonsRegister()">Register</button>
+                                </div>
+                            </div>
+                        </div>
+                        <p style="margin-top:12px;color:var(--gray-500);font-size:0.85em;">API: doublons-bank-go.onrender.com</p>
                     </div>
-                    <a id="doublons-link" href="https://family-payments-beta.vercel.app" target="_blank" class="btn btn-primary" style="display:inline-block;text-decoration:none;">Open Payment Processor</a>
-                    <p style="margin-top:12px;color:var(--gray-500);font-size:0.85em;">Opens in a new tab. Use your Family Finance credentials to log in.</p>
+
+                    <!-- Connected state -->
+                    <div id="doublons-connected" style="display:none;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                            <div>
+                                <strong id="db-user-email"></strong>
+                                <span style="margin-left:8px;color:var(--gray-400);font-size:13px;">Connected</span>
+                            </div>
+                            <button class="btn btn-sm btn-secondary" onclick="doublonsLogout()">Disconnect</button>
+                        </div>
+
+                        <!-- Account list -->
+                        <div style="margin-bottom:16px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                                <h4 style="margin:0;">Accounts</h4>
+                                <button class="btn btn-sm btn-primary" onclick="showCreateAccount()">+ New Account</button>
+                            </div>
+                            <div id="db-accounts-list">
+                                <div class="empty-state"><span class="icon">&#128176;</span><p>No accounts yet</p></div>
+                            </div>
+                        </div>
+
+                        <!-- Create Account Form -->
+                        <div id="db-create-account-form" style="display:none;margin-bottom:16px;padding:16px;background:var(--gray-800);border-radius:var(--radius);">
+                            <h4 style="margin-bottom:8px;">Create Account</h4>
+                            <div class="form-group">
+                                <input type="text" id="db-account-name" placeholder="Account name">
+                            </div>
+                            <div style="display:flex;gap:8px;">
+                                <button class="btn btn-primary" onclick="createDbAccount()">Create</button>
+                                <button class="btn btn-secondary" onclick="hideCreateAccount()">Cancel</button>
+                            </div>
+                        </div>
+
+                        <!-- Deposit form (Family Finance → Doublons Bank) -->
+                        <div style="margin-bottom:16px;padding:16px;background:var(--gray-800);border-radius:var(--radius);">
+                            <h4 style="margin-bottom:8px;color:var(--accent);">Send to Doublons Bank</h4>
+                            <p style="font-size:12px;color:var(--gray-400);margin-bottom:8px;">Withdraw from your Family Finance balance and deposit into Doublons Bank</p>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>From Account</label>
+                                    <select id="db-deposit-account"></select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Amount ($)</label>
+                                    <input type="number" id="db-deposit-amount" step="0.01" min="0.01" placeholder="0.00">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Note (optional)</label>
+                                <input type="text" id="db-deposit-note" placeholder="e.g., Savings transfer">
+                            </div>
+                            <button class="btn btn-primary" onclick="sendToDoublons()">Send to Doublons Bank</button>
+                        </div>
+
+                        <!-- Withdraw form (Doublons Bank → Family Finance) -->
+                        <div style="margin-bottom:16px;padding:16px;background:var(--gray-800);border-radius:var(--radius);">
+                            <h4 style="margin-bottom:8px;color:var(--accent);">Receive from Doublons Bank</h4>
+                            <p style="font-size:12px;color:var(--gray-400);margin-bottom:8px;">Withdraw from Doublons Bank and deposit into your Family Finance balance</p>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>From Account</label>
+                                    <select id="db-withdraw-account"></select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Amount ($)</label>
+                                    <input type="number" id="db-withdraw-amount" step="0.01" min="0.01" placeholder="0.00">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Note (optional)</label>
+                                <input type="text" id="db-withdraw-note" placeholder="e.g., Savings withdrawal">
+                            </div>
+                            <button class="btn btn-primary" onclick="receiveFromDoublons()">Receive from Doublons Bank</button>
+                        </div>
+
+                        <!-- Recent activity -->
+                        <div>
+                            <h4 style="margin-bottom:8px;">Recent Activity</h4>
+                            <div id="db-activity-list">
+                                <div class="empty-state"><span class="icon">&#128203;</span><p>No activity yet</p></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="doublons-status" style="margin-top:12px;padding:8px;border-radius:var(--radius);display:none;"></div>
                 </div>
             </div>
         </main>
@@ -566,6 +662,219 @@
         });
 
         loadData();
+
+        // ===== Doublons Bank Integration =====
+        const DB_API = 'https://double-entry-bank-go.onrender.com';
+        let dbToken = localStorage.getItem('dbToken');
+        let dbEmail = localStorage.getItem('dbEmail');
+        let dbAccounts = [];
+
+        function dbShowStatus(msg, isError) {
+            const el = document.getElementById('doublons-status');
+            el.style.display = 'block';
+            el.style.background = isError ? 'var(--red-900)' : 'var(--green-900)';
+            el.style.color = isError ? 'var(--red-200)' : 'var(--green-200)';
+            el.textContent = msg;
+            setTimeout(() => el.style.display = 'none', 5000);
+        }
+
+        async function dbFetch(path, opts = {}) {
+            const headers = { 'Content-Type': 'application/json', ...opts.headers };
+            if (dbToken) headers['Authorization'] = 'Bearer ' + dbToken;
+            const res = await fetch(DB_API + path, { ...opts, headers });
+            const text = await res.text();
+            let data;
+            try { data = JSON.parse(text); } catch { data = { message: text }; }
+            if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
+            return data;
+        }
+
+        async function doublonsLogin() {
+            const email = document.getElementById('db-email').value.trim();
+            const password = document.getElementById('db-password').value;
+            if (!email || !password) return alert('Enter email and password');
+            try {
+                const data = await dbFetch('/login', {
+                    method: 'POST',
+                    body: JSON.stringify({ email, password })
+                });
+                dbToken = data.token;
+                dbEmail = email;
+                localStorage.setItem('dbToken', dbToken);
+                localStorage.setItem('dbEmail', dbEmail);
+                dbShowStatus('Connected to Doublons Bank', false);
+                showDoublonsConnected();
+                loadDbAccounts();
+            } catch (err) {
+                dbShowStatus(err.message, true);
+            }
+        }
+
+        async function doublonsRegister() {
+            const email = document.getElementById('db-email').value.trim();
+            const password = document.getElementById('db-password').value;
+            if (!email || !password) return alert('Enter email and password');
+            if (password.length < 6) return alert('Password must be at least 6 characters');
+            try {
+                await dbFetch('/register', {
+                    method: 'POST',
+                    body: JSON.stringify({ email, password })
+                });
+                dbShowStatus('Account created! Now sign in.', false);
+            } catch (err) {
+                dbShowStatus(err.message, true);
+            }
+        }
+
+        function doublonsLogout() {
+            dbToken = null;
+            dbEmail = null;
+            dbAccounts = [];
+            localStorage.removeItem('dbToken');
+            localStorage.removeItem('dbEmail');
+            document.getElementById('doublons-not-connected').style.display = 'block';
+            document.getElementById('doublons-connected').style.display = 'none';
+        }
+
+        function showDoublonsConnected() {
+            document.getElementById('doublons-not-connected').style.display = 'none';
+            document.getElementById('doublons-connected').style.display = 'block';
+            document.getElementById('db-user-email').textContent = dbEmail;
+        }
+
+        async function loadDbAccounts() {
+            if (!dbToken) return;
+            try {
+                dbAccounts = await dbFetch('/accounts');
+                renderDbAccounts();
+            } catch (err) {
+                dbShowStatus('Failed to load accounts: ' + err.message, true);
+            }
+        }
+
+        function renderDbAccounts() {
+            const list = document.getElementById('db-accounts-list');
+            const depositSel = document.getElementById('db-deposit-account');
+            const withdrawSel = document.getElementById('db-withdraw-account');
+
+            if (!dbAccounts.length) {
+                list.innerHTML = '<div class="empty-state"><span class="icon">&#128176;</span><p>No accounts yet</p></div>';
+                depositSel.innerHTML = '<option value="">No accounts</option>';
+                withdrawSel.innerHTML = '<option value="">No accounts</option>';
+                return;
+            }
+
+            list.innerHTML = dbAccounts.map(a => `
+                <div class="transaction-item">
+                    <div class="transaction-left">
+                        <div class="transaction-icon">&#128176;</div>
+                        <div class="transaction-info">
+                            <h4>${escapeHtml(a.name)}</h4>
+                            <span>ID: ${a.id} &middot; ${escapeHtml(a.currency || 'USD')}</span>
+                        </div>
+                    </div>
+                    <span class="transaction-amount income">$${parseFloat(a.balance || 0).toFixed(2)}</span>
+                </div>
+            `).join('');
+
+            const opts = dbAccounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)} ($${parseFloat(a.balance || 0).toFixed(2)})</option>`).join('');
+            depositSel.innerHTML = '<option value="">Select account...</option>' + opts;
+            withdrawSel.innerHTML = '<option value="">Select account...</option>' + opts;
+        }
+
+        function showCreateAccount() {
+            document.getElementById('db-create-account-form').style.display = 'block';
+        }
+
+        function hideCreateAccount() {
+            document.getElementById('db-create-account-form').style.display = 'none';
+        }
+
+        async function createDbAccount() {
+            const name = document.getElementById('db-account-name').value.trim();
+            if (!name) return alert('Enter an account name');
+            try {
+                await dbFetch('/accounts', {
+                    method: 'POST',
+                    body: JSON.stringify({ name, currency: 'USD' })
+                });
+                hideCreateAccount();
+                document.getElementById('db-account-name').value = '';
+                loadDbAccounts();
+            } catch (err) {
+                dbShowStatus(err.message, true);
+            }
+        }
+
+        async function sendToDoublons() {
+            const accountId = document.getElementById('db-deposit-account').value;
+            const amount = parseFloat(document.getElementById('db-deposit-amount').value);
+            const note = document.getElementById('db-deposit-note').value.trim();
+            if (!accountId) return alert('Select a Doublons Bank account');
+            if (!amount || amount <= 0) return alert('Enter a valid amount');
+
+            if (!confirm(`Send $${amount.toFixed(2)} from Family Finance to Doublons Bank?`)) return;
+
+            try {
+                // Step 1: Record withdrawal in Family Finance
+                const ffResult = await apiPost('/api/external/withdraw', {
+                    username: user, amount, note: note || 'Doublons Bank transfer'
+                });
+                if (ffResult.error) throw new Error(ffResult.error);
+
+                // Step 2: Deposit into Doublons Bank account
+                await dbFetch(`/accounts/${accountId}/deposit`, {
+                    method: 'POST',
+                    body: JSON.stringify({ amount: amount.toString(), currency: 'USD' })
+                });
+
+                dbShowStatus(`Sent $${amount.toFixed(2)} to Doublons Bank`, false);
+                document.getElementById('db-deposit-amount').value = '';
+                document.getElementById('db-deposit-note').value = '';
+                loadDbAccounts();
+                loadData();
+            } catch (err) {
+                dbShowStatus(err.message, true);
+            }
+        }
+
+        async function receiveFromDoublons() {
+            const accountId = document.getElementById('db-withdraw-account').value;
+            const amount = parseFloat(document.getElementById('db-withdraw-amount').value);
+            const note = document.getElementById('db-withdraw-note').value.trim();
+            if (!accountId) return alert('Select a Doublons Bank account');
+            if (!amount || amount <= 0) return alert('Enter a valid amount');
+
+            if (!confirm(`Receive $${amount.toFixed(2)} from Doublons Bank to Family Finance?`)) return;
+
+            try {
+                // Step 1: Withdraw from Doublons Bank
+                await dbFetch(`/accounts/${accountId}/withdraw`, {
+                    method: 'POST',
+                    body: JSON.stringify({ amount: amount.toString(), currency: 'USD' })
+                });
+
+                // Step 2: Record deposit in Family Finance
+                const ffResult = await apiPost('/api/external/deposit', {
+                    username: user, amount, note: note || 'Doublons Bank transfer'
+                });
+                if (ffResult.error) throw new Error(ffResult.error);
+
+                dbShowStatus(`Received $${amount.toFixed(2)} from Doublons Bank`, false);
+                document.getElementById('db-withdraw-amount').value = '';
+                document.getElementById('db-withdraw-note').value = '';
+                loadDbAccounts();
+                loadData();
+            } catch (err) {
+                dbShowStatus(err.message, true);
+            }
+        }
+
+        // Auto-connect if token exists
+        if (dbToken && dbEmail) {
+            showDoublonsConnected();
+            loadDbAccounts();
+        }
     </script>
 
     <!-- Change Password Modal -->

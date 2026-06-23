@@ -1353,6 +1353,71 @@ app.get('/health', async (req, res) => {
     });
 });
 
+// External deposit (from Doublons Bank to Family Finance)
+app.post('/api/external/deposit', authLimiter, authMiddleware, async (req, res) => {
+    try {
+        const { username, amount, note, externalRef } = req.body;
+        if (req.authUser !== username) {
+            return res.status(403).json({ error: 'Cannot deposit on behalf of another user' });
+        }
+        if (!amount || amount <= 0) {
+            return res.status(400).json({ error: 'Invalid amount' });
+        }
+        const userDoc = await User.findOne({ username });
+        if (!userDoc) return res.status(404).json({ error: 'User not found' });
+
+        if (!userDoc.transactions) userDoc.transactions = [];
+        const now = new Date().toISOString();
+        userDoc.transactions.push({
+            id: Date.now(),
+            description: `Doublons Bank Deposit: ${sanitize(note) || 'External transfer in'}`,
+            amount, type: 'income', category: 'external', date: now
+        });
+        await userDoc.save();
+        res.json({ success: true, message: `Deposited $${amount.toFixed(2)} from Doublons Bank` });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// External withdrawal (from Family Finance to Doublons Bank)
+app.post('/api/external/withdraw', authLimiter, authMiddleware, async (req, res) => {
+    try {
+        const { username, amount, note, externalRef } = req.body;
+        if (req.authUser !== username) {
+            return res.status(403).json({ error: 'Cannot withdraw on behalf of another user' });
+        }
+        if (!amount || amount <= 0) {
+            return res.status(400).json({ error: 'Invalid amount' });
+        }
+        const userDoc = await User.findOne({ username });
+        if (!userDoc) return res.status(404).json({ error: 'User not found' });
+
+        const txs = userDoc.transactions || [];
+        const income = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+        const expenses = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+        const balance = income - expenses;
+
+        if (amount > balance) {
+            return res.status(400).json({ error: 'Insufficient balance' });
+        }
+
+        if (!userDoc.transactions) userDoc.transactions = [];
+        const now = new Date().toISOString();
+        userDoc.transactions.push({
+            id: Date.now(),
+            description: `Doublons Bank Withdrawal: ${sanitize(note) || 'External transfer out'}`,
+            amount, type: 'expense', category: 'external', date: now
+        });
+        await userDoc.save();
+        res.json({ success: true, message: `Withdrew $${amount.toFixed(2)} to Doublons Bank` });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Page routes
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'dashboard.html')));
