@@ -53,99 +53,44 @@
         <main class="main-content">
             <div class="page-header">
                 <h1>Doublons Bank</h1>
-                <p>Manage your Doublons Bank accounts and transfers</p>
+                <p>Transfer money between Family Finance and Doublons Bank</p>
             </div>
 
-            <!-- Auth Section (shown when not logged in) -->
-            <div id="doublons-auth" class="card">
+            <!-- Send to Doublons Bank -->
+            <div class="card">
                 <div class="card-header">
-                    <span class="card-title">Login / Register</span>
+                    <span class="card-title">Send to Doublons Bank</span>
                 </div>
                 <div style="padding:16px;">
-                    <p style="margin-bottom:12px;color:var(--gray-400);">Connect to your Doublons Bank account or create a new one.</p>
+                    <p style="margin-bottom:12px;color:var(--gray-400);">Withdraw from your Family Finance balance and send to a Doublons Bank user</p>
                     <div class="form-group">
-                        <label>Email</label>
-                        <input type="email" id="doublons-email" placeholder="your@email.com">
+                        <label>Doublons Bank Username</label>
+                        <input type="text" id="doublons-to-username" placeholder="e.g., amelia">
                     </div>
-                    <div class="form-group">
-                        <label>Password</label>
-                        <input type="password" id="doublons-password" placeholder="Password">
-                    </div>
-                    <div style="display:flex;gap:8px;">
-                        <button class="btn btn-primary" onclick="doublonsLogin()">Login</button>
-                        <button class="btn btn-secondary" onclick="doublonsRegister()">Register</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Accounts Section (shown when logged in) -->
-            <div id="doublons-accounts" style="display:none;">
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">My Accounts</span>
-                        <button class="btn btn-sm btn-secondary" onclick="doublonsLogout()">Logout</button>
-                    </div>
-                    <div id="doublons-accounts-list" style="padding:16px;">
-                        <div class="empty-state"><span class="icon">&#128176;</span><p>No accounts yet</p></div>
-                    </div>
-                </div>
-
-                <!-- Create Account -->
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">Create Account</span>
-                    </div>
-                    <div style="padding:16px;">
-                        <div class="form-group">
-                            <label>Account Name</label>
-                            <input type="text" id="doublons-new-name" placeholder="e.g., Savings">
-                        </div>
-                        <button class="btn btn-primary" onclick="doublonsCreateAccount()">Create Account</button>
-                    </div>
-                </div>
-
-                <!-- Transfer Between Accounts -->
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">Transfer Between Accounts</span>
-                    </div>
-                    <div style="padding:16px;">
-                        <div class="form-group">
-                            <label>From Account</label>
-                            <select id="doublons-from"></select>
-                        </div>
-                        <div class="form-group">
-                            <label>To Account</label>
-                            <select id="doublons-to"></select>
-                        </div>
+                    <div class="form-row">
                         <div class="form-group">
                             <label>Amount ($)</label>
                             <input type="number" id="doublons-amount" step="0.01" min="0.01" placeholder="0.00">
                         </div>
-                        <button class="btn btn-primary" onclick="doublonsTransfer()">Transfer</button>
-                    </div>
-                </div>
-
-                <!-- Transfer to Family Finance -->
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">Transfer to Family Finance</span>
-                    </div>
-                    <div style="padding:16px;">
-                        <p style="margin-bottom:12px;color:var(--gray-400);">Deposit from Doublons Bank into your Family Finance balance</p>
-                        <div class="form-group">
-                            <label>From Doublons Account</label>
-                            <select id="doublons-ff-from"></select>
-                        </div>
-                        <div class="form-group">
-                            <label>Amount ($)</label>
-                            <input type="number" id="doublons-ff-amount" step="0.01" min="0.01" placeholder="0.00">
-                        </div>
                         <div class="form-group">
                             <label>Note (optional)</label>
-                            <input type="text" id="doublons-ff-note" placeholder="e.g., Savings transfer">
+                            <input type="text" id="doublons-note" placeholder="e.g., Savings transfer">
                         </div>
-                        <button class="btn btn-primary" onclick="doublonsToFfamilyFinance()">Deposit to Family Finance</button>
+                    </div>
+                    <button class="btn btn-primary" onclick="sendToDoublons()">Withdraw to Doublons Bank</button>
+                </div>
+            </div>
+
+            <!-- Receive from Doublons Bank -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Receive from Doublons Bank</span>
+                </div>
+                <div style="padding:16px;">
+                    <p style="margin-bottom:12px;color:var(--gray-400);">Ask someone on Doublons Bank to send you money using your Family Finance username</p>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button class="btn btn-secondary" onclick="copyFamilyFinanceUsername()">Copy My Username</button>
+                        <a href="https://doublons-bank.vercel.app/" target="_blank" class="btn btn-secondary" style="text-decoration:none;">Open Doublons Bank</a>
                     </div>
                 </div>
             </div>
@@ -161,13 +106,7 @@
         if (!user) window.location.href = '/';
         initUserMenu(user);
 
-        const DB_API = 'https://doublons-bank.vercel.app';
-        const DB_API_KEY = 'dbl_sk_a0js30pyl3wsjrw5elbsvo755ub65piutqy3qnzw';
-
-        let doublonsToken = null;
-        let doublonsAccounts = [];
-
-        function dbShowStatus(msg, isError) {
+        function doublonsShowStatus(msg, isError) {
             const el = document.getElementById('doublons-status');
             el.style.display = 'block';
             el.style.background = isError ? 'var(--red-900)' : 'var(--green-900)';
@@ -176,222 +115,34 @@
             setTimeout(() => el.style.display = 'none', 5000);
         }
 
-        function fmt(n) {
-            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
-        }
-
-        async function loadDoublonsToken() {
-            const data = await apiGet('/api/user/' + user + '/settings');
-            if (data && data.doublonsToken) {
-                doublonsToken = data.doublonsToken;
-                showLoggedInState();
-                loadAccounts();
-            }
-        }
-
-        function showLoggedInState() {
-            document.getElementById('doublons-auth').style.display = 'none';
-            document.getElementById('doublons-accounts').style.display = 'block';
-        }
-
-        function showLoggedOutState() {
-            document.getElementById('doublons-auth').style.display = 'block';
-            document.getElementById('doublons-accounts').style.display = 'none';
-        }
-
-        async function doublonsRegister() {
-            const email = document.getElementById('doublons-email').value.trim();
-            const password = document.getElementById('doublons-password').value;
-            if (!email || !password) return alert('Fill in all fields');
-
-            try {
-                const res = await fetch(DB_API + '/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + DB_API_KEY },
-                    body: JSON.stringify({ email, password })
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || data.message || 'Registration failed');
-
-                if (data.token) {
-                    doublonsToken = data.token;
-                    await saveToken(data.token, email);
-                    showLoggedInState();
-                    loadAccounts();
-                    dbShowStatus('Account created and logged in', false);
-                }
-            } catch (err) {
-                dbShowStatus(err.message, true);
-            }
-        }
-
-        async function doublonsLogin() {
-            const email = document.getElementById('doublons-email').value.trim();
-            const password = document.getElementById('doublons-password').value;
-            if (!email || !password) return alert('Fill in all fields');
-
-            try {
-                const res = await fetch(DB_API + '/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + DB_API_KEY },
-                    body: JSON.stringify({ email, password })
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || data.message || 'Login failed');
-
-                if (data.token) {
-                    doublonsToken = data.token;
-                    await saveToken(data.token, email);
-                    showLoggedInState();
-                    loadAccounts();
-                    dbShowStatus('Logged in', false);
-                }
-            } catch (err) {
-                dbShowStatus(err.message, true);
-            }
-        }
-
-        async function saveToken(token, email) {
-            await apiPost('/api/user/' + user + '/doublons-token', { token, email });
-        }
-
-        async function doublonsLogout() {
-            doublonsToken = null;
-            doublonsAccounts = [];
-            await apiPost('/api/user/' + user + '/doublons-token', { token: null, email: null });
-            showLoggedOutState();
-        }
-
-        async function loadAccounts() {
-            if (!doublonsToken) return;
-            try {
-                const res = await fetch(DB_API + '/accounts', {
-                    headers: { 'Authorization': 'Bearer ' + doublonsToken, 'X-API-Key': DB_API_KEY }
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || data.message || 'Failed to load accounts');
-                doublonsAccounts = Array.isArray(data) ? data : (data.accounts || []);
-                renderAccounts();
-            } catch (err) {
-                dbShowStatus(err.message, true);
-            }
-        }
-
-        function renderAccounts() {
-            const list = document.getElementById('doublons-accounts-list');
-            const fromSel = document.getElementById('doublons-from');
-            const toSel = document.getElementById('doublons-to');
-            const ffFromSel = document.getElementById('doublons-ff-from');
-
-            if (!doublonsAccounts.length) {
-                list.innerHTML = '<div class="empty-state"><span class="icon">&#128176;</span><p>No accounts yet</p></div>';
-                fromSel.innerHTML = '<option value="">No accounts</option>';
-                toSel.innerHTML = '<option value="">No accounts</option>';
-                ffFromSel.innerHTML = '<option value="">No accounts</option>';
-                return;
-            }
-
-            list.innerHTML = doublonsAccounts.map(a => `
-                <div class="transaction-item">
-                    <div class="transaction-left">
-                        <div class="transaction-icon">&#128176;</div>
-                        <div class="transaction-info">
-                            <h4>${escapeHtml(a.name)}</h4>
-                            <span>${escapeHtml(a.currency || 'USD')}</span>
-                        </div>
-                    </div>
-                    <span class="transaction-amount income">${fmt(a.balance || 0)}</span>
-                </div>
-            `).join('');
-
-            const opts = doublonsAccounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)} (${fmt(a.balance || 0)})</option>`).join('');
-            fromSel.innerHTML = '<option value="">Select account...</option>' + opts;
-            toSel.innerHTML = '<option value="">Select account...</option>' + opts;
-            ffFromSel.innerHTML = '<option value="">Select account...</option>' + opts;
-        }
-
-        async function doublonsCreateAccount() {
-            const name = document.getElementById('doublons-new-name').value.trim();
-            if (!name) return alert('Enter an account name');
-            if (!doublonsToken) return alert('Not logged in');
-
-            try {
-                const res = await fetch(DB_API + '/accounts', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + doublonsToken, 'X-API-Key': DB_API_KEY },
-                    body: JSON.stringify({ name, currency: 'USD' })
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || data.message || 'Failed to create account');
-                document.getElementById('doublons-new-name').value = '';
-                loadAccounts();
-                dbShowStatus('Account created', false);
-            } catch (err) {
-                dbShowStatus(err.message, true);
-            }
-        }
-
-        async function doublonsTransfer() {
-            const fromId = document.getElementById('doublons-from').value;
-            const toId = document.getElementById('doublons-to').value;
+        async function sendToDoublons() {
+            const toUsername = document.getElementById('doublons-to-username').value.trim();
             const amount = parseFloat(document.getElementById('doublons-amount').value);
-            if (!fromId || !toId) return alert('Select both accounts');
-            if (fromId === toId) return alert('Select different accounts');
+            const note = document.getElementById('doublons-note').value.trim();
+            if (!toUsername) return alert('Enter a Doublons Bank username');
             if (!amount || amount <= 0) return alert('Enter a valid amount');
 
-            try {
-                const res = await fetch(DB_API + '/transfers', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + doublonsToken, 'X-API-Key': DB_API_KEY },
-                    body: JSON.stringify({ from_id: fromId, to_id: toId, amount: amount.toString(), currency: 'USD' })
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || data.message || 'Transfer failed');
-                document.getElementById('doublons-amount').value = '';
-                loadAccounts();
-                dbShowStatus('Transfer complete', false);
-            } catch (err) {
-                dbShowStatus(err.message, true);
-            }
-        }
-
-        async function doublonsToFfamilyFinance() {
-            const fromId = document.getElementById('doublons-ff-from').value;
-            const amount = parseFloat(document.getElementById('doublons-ff-amount').value);
-            const note = document.getElementById('doublons-ff-note').value.trim();
-            if (!fromId) return alert('Select a Doublons account');
-            if (!amount || amount <= 0) return alert('Enter a valid amount');
-
-            if (!confirm(`Deposit ${fmt(amount)} from Doublons Bank into Family Finance?`)) return;
+            if (!confirm(`Withdraw $${amount.toFixed(2)} from Family Finance and send to Doublons Bank user "${toUsername}"?`)) return;
 
             try {
-                // Withdraw from Doublons Bank
-                const txRes = await fetch(DB_API + '/transfers', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + doublonsToken, 'X-API-Key': DB_API_KEY },
-                    body: JSON.stringify({ from_id: fromId, to_id: 'family-finance', amount: amount.toString(), currency: 'USD' })
-                });
-                const txData = await txRes.json();
-                if (!txRes.ok) throw new Error(txData.error || txData.message || 'Doublons Bank transfer failed');
-
-                // Deposit into Family Finance
-                const ffResult = await apiPost('/api/external/deposit', {
-                    username: user,
-                    amount,
-                    note: note || 'Doublons Bank transfer'
+                const ffResult = await apiPost('/api/external/withdraw', {
+                    username: user, amount, note: note || `Transfer to ${toUsername} on Doublons Bank`
                 });
                 if (ffResult.error) throw new Error(ffResult.error);
 
-                document.getElementById('doublons-ff-amount').value = '';
-                document.getElementById('doublons-ff-note').value = '';
-                loadAccounts();
-                dbShowStatus(`Deposited ${fmt(amount)} into Family Finance`, false);
+                doublonsShowStatus(`Withdrew $${amount.toFixed(2)} for Doublons Bank transfer to ${toUsername}. Open Doublons Bank to complete the deposit.`, false);
+                document.getElementById('doublons-amount').value = '';
+                document.getElementById('doublons-note').value = '';
             } catch (err) {
-                dbShowStatus(err.message, true);
+                doublonsShowStatus(err.message, true);
             }
         }
 
-        loadDoublonsToken();
+        function copyFamilyFinanceUsername() {
+            navigator.clipboard.writeText(user).then(() => {
+                doublonsShowStatus('Username copied: ' + user, false);
+            });
+        }
     </script>
 
     <!-- Change Password Modal -->
