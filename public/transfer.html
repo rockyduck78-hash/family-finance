@@ -246,7 +246,7 @@
                                 </div>
                             </div>
                         </div>
-                        <p style="margin-top:12px;color:var(--gray-500);font-size:0.85em;">API: doublons-bank-go.onrender.com</p>
+                        <p style="margin-top:12px;color:var(--gray-500);font-size:0.85em;">API: doublons-bank-go.onrender.com <span id="db-api-status" style="margin-left:8px;"></span></p>
                     </div>
 
                     <!-- Connected state -->
@@ -875,6 +875,22 @@
             showDoublonsConnected();
             loadDbAccounts();
         }
+
+        // Check Doublons Bank API status
+        async function checkDbApiStatus() {
+            const el = document.getElementById('db-api-status');
+            try {
+                const res = await fetch(DB_API + '/health', { signal: AbortSignal.timeout(5000) });
+                if (res.ok) {
+                    el.innerHTML = '<span style="color:var(--green-400);">● Online</span>';
+                } else {
+                    el.innerHTML = '<span style="color:var(--red-400);">● Offline (status ' + res.status + ')</span>';
+                }
+            } catch {
+                el.innerHTML = '<span style="color:var(--red-400);">● Offline</span>';
+            }
+        }
+        checkDbApiStatus();
     </script>
 
     <!-- Change Password Modal -->
