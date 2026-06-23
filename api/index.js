@@ -802,13 +802,14 @@ app.put('/api/user/:username/settings', authMiddleware, ownerOnly, async (req, r
 
 // Doublons Bank Integration
 const DOUBLONS_API = 'https://doublons-bank.vercel.app';
+const DOUBLONS_API_KEY = 'dbl_sk_a0js30pyl3wsjrw5elbsvo755ub65piutqy3qnzw';
 
 app.post('/api/doublons/register', authLimiter, authMiddleware, async (req, res) => {
     try {
         const { email, password } = req.body;
         if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
         const r = await fetch(DOUBLONS_API + '/register', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + DOUBLONS_API_KEY },
             body: JSON.stringify({ email, password })
         });
         const data = await r.json();
@@ -825,7 +826,7 @@ app.post('/api/doublons/login', authLimiter, authMiddleware, async (req, res) =>
         const { email, password } = req.body;
         if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
         const r = await fetch(DOUBLONS_API + '/login', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + DOUBLONS_API_KEY },
             body: JSON.stringify({ email, password })
         });
         const data = await r.json();
@@ -842,7 +843,7 @@ app.post('/api/doublons/accounts', authLimiter, authMiddleware, async (req, res)
         const { token } = req.body;
         if (!token) return res.status(400).json({ error: 'Token required' });
         const r = await fetch(DOUBLONS_API + '/accounts', {
-            headers: { 'Authorization': 'Bearer ' + token }
+            headers: { 'Authorization': 'Bearer ' + token, 'X-API-Key': DOUBLONS_API_KEY }
         });
         const data = await r.json();
         if (!r.ok) return res.status(r.status).json(data);
@@ -858,7 +859,7 @@ app.post('/api/doublons/accounts/create', authLimiter, authMiddleware, async (re
         const { token, name } = req.body;
         if (!token || !name) return res.status(400).json({ error: 'Token and name required' });
         const r = await fetch(DOUBLONS_API + '/accounts', {
-            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'X-API-Key': DOUBLONS_API_KEY },
             body: JSON.stringify({ name, currency: 'USD' })
         });
         const data = await r.json();
@@ -875,7 +876,7 @@ app.post('/api/doublons/transfer', authLimiter, authMiddleware, async (req, res)
         const { token, from_id, to_id, amount } = req.body;
         if (!token || !from_id || !to_id || !amount) return res.status(400).json({ error: 'All fields required' });
         const r = await fetch(DOUBLONS_API + '/transfers', {
-            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'X-API-Key': DOUBLONS_API_KEY },
             body: JSON.stringify({ from_id, to_id, amount: amount.toString(), currency: 'USD' })
         });
         const data = await r.json();
