@@ -526,6 +526,13 @@ body {
     display: flex;
     align-items: center;
     gap: 4px;
+    overflow-x: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.topnav-nav::-webkit-scrollbar {
+    display: none;
 }
 
 .topnav-nav a {
