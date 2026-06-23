@@ -6,6 +6,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <title>Doublons Bank - Family Finance</title>
     <link rel="stylesheet" href="/styles.css">
+    <script src="/particles.js" defer></script>
 </head>
 <body>
     <div class="app-layout">
@@ -102,45 +103,60 @@
     <script src="/auth.js"></script>
     <script src="/user-menu.js"></script>
     <script>
-        const user = localStorage.getItem('currentUser');
-        if (!user) window.location.href = '/';
-        initUserMenu(user);
+        const currentUser = localStorage.getItem('currentUser');
+        const currentToken = localStorage.getItem('ff-token');
+        if (!currentUser || !currentToken) { window.location.href = '/'; }
+        initUserMenu(currentUser);
 
         function doublonsShowStatus(msg, isError) {
             const el = document.getElementById('doublons-status');
             el.style.display = 'block';
-            el.style.background = isError ? 'var(--red-900)' : 'var(--green-900)';
-            el.style.color = isError ? 'var(--red-200)' : 'var(--green-200)';
+            el.style.background = isError ? '#7f1d1d' : '#14532d';
+            el.style.color = isError ? '#fecaca' : '#bbf7d0';
             el.textContent = msg;
-            setTimeout(() => el.style.display = 'none', 5000);
+            setTimeout(() => el.style.display = 'none', 6000);
         }
 
         async function sendToDoublons() {
+            const btn = document.querySelector('.btn-primary');
             const toUsername = document.getElementById('doublons-to-username').value.trim();
             const amount = parseFloat(document.getElementById('doublons-amount').value);
             const note = document.getElementById('doublons-note').value.trim();
             if (!toUsername) return alert('Enter a Doublons Bank username');
             if (!amount || amount <= 0) return alert('Enter a valid amount');
 
-            if (!confirm(`Withdraw $${amount.toFixed(2)} from Family Finance and send to Doublons Bank user "${toUsername}"?`)) return;
+            if (!confirm('Withdraw $' + amount.toFixed(2) + ' from Family Finance and send to Doublons Bank user "' + toUsername + '"?')) return;
 
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
             try {
                 const ffResult = await apiPost('/api/external/withdraw', {
-                    username: user, amount, note: note || `Transfer to ${toUsername} on Doublons Bank`
+                    username: currentUser, amount: amount, note: note || 'Transfer to ' + toUsername + ' on Doublons Bank'
                 });
                 if (ffResult.error) throw new Error(ffResult.error);
 
-                doublonsShowStatus(`Withdrew $${amount.toFixed(2)} for Doublons Bank transfer to ${toUsername}. Open Doublons Bank to complete the deposit.`, false);
+                doublonsShowStatus('Withdrew $' + amount.toFixed(2) + ' from Family Finance for transfer to ' + toUsername + '. Open Doublons Bank to complete the deposit.', false);
                 document.getElementById('doublons-amount').value = '';
                 document.getElementById('doublons-note').value = '';
             } catch (err) {
-                doublonsShowStatus(err.message, true);
+                doublonsShowStatus(err.message || 'Transfer failed. Please try again.', true);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Withdraw to Doublons Bank';
             }
         }
 
         function copyFamilyFinanceUsername() {
-            navigator.clipboard.writeText(user).then(() => {
-                doublonsShowStatus('Username copied: ' + user, false);
+            navigator.clipboard.writeText(currentUser).then(() => {
+                doublonsShowStatus('Username copied: ' + currentUser, false);
+            }).catch(() => {
+                var ta = document.createElement('textarea');
+                ta.value = currentUser;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                doublonsShowStatus('Username copied: ' + currentUser, false);
             });
         }
     </script>
