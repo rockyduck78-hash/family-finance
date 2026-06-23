@@ -4,9 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <title>Dashboard - Family Finance</title>
+    <title>Inter Bank System - Family Finance</title>
     <link rel="stylesheet" href="/styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="app-layout">
@@ -16,11 +15,11 @@
                 <span class="brand-text">Family Finance</span>
             </a>
             <div class="topnav-nav">
-                <a href="/dashboard" class="active"><span class="nav-icon">&#9632;</span> <span class="nav-label">Dashboard</span></a>
+                <a href="/dashboard"><span class="nav-icon">&#9632;</span> <span class="nav-label">Dashboard</span></a>
                 <a href="/transactions"><span class="nav-icon">&#9655;</span> <span class="nav-label">Transactions</span></a>
                 <a href="/transfer"><span class="nav-icon">&#8644;</span> <span class="nav-label">Transfer</span></a>
                 <a href="/family"><span class="nav-icon">&#128106;</span> <span class="nav-label">Family</span></a>
-                <a href="/interbank"><span class="nav-icon">&#127974;</span> <span class="nav-label">Inter Bank</span></a>
+                <a href="/interbank" class="active"><span class="nav-icon">&#127974;</span> <span class="nav-label">Inter Bank</span></a>
             </div>
             <div class="topnav-right">
                 <div class="topnav-user" id="user-menu">
@@ -52,35 +51,50 @@
 
         <main class="main-content">
             <div class="page-header">
-                <h1>Dashboard</h1>
-                <p>Your financial overview at a glance</p>
+                <h1>Inter Bank System</h1>
+                <p>Transfer money between Family Finance and Bank of Philip</p>
             </div>
 
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-label">Total Income</div>
-                    <div class="stat-value income" id="total-income">$0.00</div>
+            <!-- Send to Bank of Philip -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Send to Bank of Philip</span>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-label">Total Expenses</div>
-                    <div class="stat-value expense" id="total-expenses">$0.00</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Current Balance</div>
-                    <div class="stat-value balance" id="current-balance">$0.00</div>
+                <div style="padding:16px;">
+                    <p style="margin-bottom:12px;color:var(--gray-400);">Withdraw from your Family Finance balance and deposit into a Bank of Philip account</p>
+                    <div class="form-group">
+                        <label>Bank of Philip Username</label>
+                        <input type="text" id="bop-username" placeholder="e.g., philip">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Amount ($)</label>
+                            <input type="number" id="bop-amount" step="0.01" min="0.01" placeholder="0.00">
+                        </div>
+                        <div class="form-group">
+                            <label>Note (optional)</label>
+                            <input type="text" id="bop-note" placeholder="e.g., Savings transfer">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="sendToBankOfPhilip()">Send to Bank of Philip</button>
                 </div>
             </div>
 
-            <div class="charts-grid">
-                <div class="chart-card">
-                    <h3>Income vs Expenses</h3>
-                    <div class="chart-container"><canvas id="incomeExpenseChart"></canvas></div>
+            <!-- Receive from Bank of Philip -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Receive from Bank of Philip</span>
                 </div>
-                <div class="chart-card">
-                    <h3>Spending by Category</h3>
-                    <div class="chart-container"><canvas id="categoryChart"></canvas></div>
+                <div style="padding:16px;">
+                    <p style="margin-bottom:12px;color:var(--gray-400);">Ask someone on Bank of Philip to send you money using your Family Finance username</p>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button class="btn btn-secondary" onclick="copyFamilyFinanceUsername()">Copy My Username</button>
+                        <a href="https://bank-of-philip-130515044033.us-west2.run.app/" target="_blank" class="btn btn-secondary" style="text-decoration:none;">Open Bank of Philip</a>
+                    </div>
                 </div>
             </div>
+
+            <div id="bop-status" style="margin-top:12px;padding:8px;border-radius:var(--radius);display:none;"></div>
         </main>
     </div>
 
@@ -91,144 +105,62 @@
         if (!user) window.location.href = '/';
         initUserMenu(user);
 
-        let transactions = [];
-        let incomeExpenseChart = null;
-        let categoryChart = null;
+        const BOP_API = 'https://bank-of-philip-130515044033.us-west2.run.app';
+        const BOP_API_KEY = 'sov_sk_public_dev_key_2026';
 
-        async function loadData() {
+        function bopShowStatus(msg, isError) {
+            const el = document.getElementById('bop-status');
+            el.style.display = 'block';
+            el.style.background = isError ? 'var(--red-900)' : 'var(--green-900)';
+            el.style.color = isError ? 'var(--red-200)' : 'var(--green-200)';
+            el.textContent = msg;
+            setTimeout(() => el.style.display = 'none', 5000);
+        }
+
+        async function sendToBankOfPhilip() {
+            const toUsername = document.getElementById('bop-username').value.trim();
+            const amount = parseFloat(document.getElementById('bop-amount').value);
+            const note = document.getElementById('bop-note').value.trim();
+            if (!toUsername) return alert('Enter a Bank of Philip username');
+            if (!amount || amount <= 0) return alert('Enter a valid amount');
+
+            if (!confirm(`Send $${amount.toFixed(2)} from Family Finance to Bank of Philip user "${toUsername}"?`)) return;
+
             try {
-                const data = await apiGet('/api/user/' + user);
-                if (data.error) return;
-                transactions = data.transactions || [];
-                updateSummary();
-                rebuildCharts();
-            } catch (err) {
-                console.error('Failed to load dashboard data:', err);
-            }
-        }
-
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) loadData();
-        });
-        window.addEventListener('pageshow', loadData);
-
-        function formatCurrency(amount) {
-            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-        }
-
-        function updateSummary() {
-            const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-            const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-            document.getElementById('total-income').textContent = formatCurrency(income);
-            document.getElementById('total-expenses').textContent = formatCurrency(expenses);
-            document.getElementById('current-balance').textContent = formatCurrency(income - expenses);
-        }
-
-        function getChartColors() {
-            return chartPalettes[userSettings.colorPalette] || chartPalettes.default;
-        }
-
-        function getTextColor() {
-            const theme = localStorage.getItem('ff-theme') || 'light';
-            if (theme === 'dark' || theme === 'blue') return '#d1d5db';
-            return '#6b7280';
-        }
-
-        function getGridColor() {
-            const theme = localStorage.getItem('ff-theme') || 'light';
-            if (theme === 'dark') return '#2d3748';
-            if (theme === 'blue') return '#334155';
-            return '#f3f4f6';
-        }
-
-        function rebuildCharts() {
-            if (incomeExpenseChart) { incomeExpenseChart.destroy(); incomeExpenseChart = null; }
-            if (categoryChart) { categoryChart.destroy(); categoryChart = null; }
-
-            const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-            const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-            const colors = getChartColors();
-            const textColor = getTextColor();
-            const gridColor = getGridColor();
-
-            const chartType1 = userSettings.incomeExpensesChart || 'doughnut';
-            const isRadial1 = ['doughnut', 'pie'].includes(chartType1);
-
-            const ieConfig = {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom', labels: { color: textColor, padding: 16, font: { size: 12 } } }
-                }
-            };
-            if (chartType1 === 'doughnut') ieConfig.cutout = '72%';
-
-            incomeExpenseChart = new Chart(document.getElementById('incomeExpenseChart'), {
-                type: chartType1 === 'horizontalBar' ? 'bar' : chartType1,
-                data: {
-                    labels: ['Income', 'Expenses'],
-                    datasets: [{
-                        data: [income, expenses],
-                        backgroundColor: isRadial1 ? [colors[0], colors[2]] : [colors[0], colors[2]],
-                        borderRadius: chartType1 === 'bar' ? 6 : 0,
-                        borderWidth: isRadial1 ? 0 : 2,
-                        borderColor: isRadial1 ? 'transparent' : [colors[0], colors[2]]
-                    }]
-                },
-                options: ieConfig
-            });
-            if (chartType1 === 'horizontalBar') {
-                incomeExpenseChart.options.indexAxis = 'y';
-                incomeExpenseChart.update();
-            }
-
-            const cats = {};
-            transactions.filter(t => t.type === 'expense').forEach(t => {
-                cats[t.category] = (cats[t.category] || 0) + t.amount;
-            });
-            const labels = Object.keys(cats).map(c => c.charAt(0).toUpperCase() + c.slice(1));
-            const data = Object.values(cats);
-
-            if (labels.length > 0) {
-                const chartType2 = userSettings.categoryChart || 'bar';
-                const isRadial2 = ['doughnut', 'pie'].includes(chartType2);
-
-                const catConfig = {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: isRadial2, position: 'bottom', labels: { color: textColor, padding: 12, font: { size: 11 } } } }
-                };
-
-                if (chartType2 === 'bar' || chartType2 === 'horizontalBar') {
-                    catConfig.scales = {
-                        y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, font: { size: 11 } } },
-                        x: { grid: { display: false }, ticks: { color: textColor, font: { size: 11 } } }
-                    };
-                }
-                if (chartType2 === 'doughnut') catConfig.cutout = '60%';
-
-                categoryChart = new Chart(document.getElementById('categoryChart'), {
-                    type: chartType2 === 'horizontalBar' ? 'bar' : chartType2,
-                    data: {
-                        labels,
-                        datasets: [{
-                            data,
-                            backgroundColor: colors.slice(0, labels.length),
-                            borderRadius: (chartType2 === 'bar' || chartType2 === 'horizontalBar') ? 6 : 0,
-                            borderWidth: isRadial2 ? 0 : 2,
-                            borderColor: isRadial2 ? 'transparent' : colors.slice(0, labels.length)
-                        }]
-                    },
-                    options: catConfig
+                const ffResult = await apiPost('/api/external/withdraw', {
+                    username: user, amount, note: note || `Transfer to ${toUsername}`
                 });
-                if (chartType2 === 'horizontalBar') {
-                    categoryChart.options.indexAxis = 'y';
-                    categoryChart.update();
-                }
+                if (ffResult.error) throw new Error(ffResult.error);
+
+                const res = await fetch(BOP_API + '/api/deposit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + BOP_API_KEY
+                    },
+                    body: JSON.stringify({
+                        username: toUsername,
+                        amount: amount,
+                        sender: user,
+                        description: note || `Transfer from Family Finance`
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || data.message || 'Bank of Philip deposit failed');
+
+                bopShowStatus(`Sent $${amount.toFixed(2)} to ${toUsername} on Bank of Philip`, false);
+                document.getElementById('bop-amount').value = '';
+                document.getElementById('bop-note').value = '';
+            } catch (err) {
+                bopShowStatus(err.message, true);
             }
         }
 
-        loadData();
+        function copyFamilyFinanceUsername() {
+            navigator.clipboard.writeText(user).then(() => {
+                bopShowStatus('Username copied: ' + user, false);
+            });
+        }
     </script>
 
     <!-- Change Password Modal -->
@@ -287,7 +219,6 @@
                 <h3>&#9881; Customize</h3>
                 <button class="modal-close" onclick="closeCustomizeModal()">&#10005;</button>
             </div>
-
             <div class="customize-section">
                 <h4>Layout Density</h4>
                 <div class="customize-options">
@@ -296,7 +227,6 @@
                     <button class="customize-option" data-group="density" data-value="comfortable" onclick="setCustomOption('density','comfortable',this)"><span class="opt-icon">&#9784;</span>Comfortable</button>
                 </div>
             </div>
-
             <div class="customize-section">
                 <h4>Font Size</h4>
                 <div class="customize-options">
@@ -305,7 +235,6 @@
                     <button class="customize-option" data-group="fontSize" data-value="large" onclick="setCustomOption('fontSize','large',this)"><span class="opt-icon">&#43;</span>Large</button>
                 </div>
             </div>
-
             <div class="customize-section">
                 <h4>Font Family</h4>
                 <div class="customize-options">
@@ -315,7 +244,6 @@
                     <button class="customize-option" data-group="fontFamily" data-value="handwriting" onclick="setCustomOption('fontFamily','handwriting',this)"><span class="opt-icon">&#9998;</span>Hand</button>
                 </div>
             </div>
-
             <div class="customize-section">
                 <h4>Card Style</h4>
                 <div class="customize-options">
@@ -324,7 +252,6 @@
                     <button class="customize-option" data-group="cardStyle" data-value="glass" onclick="setCustomOption('cardStyle','glass',this)"><span class="opt-icon">&#9672;</span>Glass</button>
                 </div>
             </div>
-
             <div class="customize-section">
                 <h4>Accent Color</h4>
                 <div class="customize-options">
@@ -340,7 +267,6 @@
                     </div>
                 </div>
             </div>
-
             <div class="customize-section">
                 <h4>Effects</h4>
                 <div class="customize-options">
@@ -348,7 +274,6 @@
                     <button class="customize-option toggle-opt" data-group="animatedBg" data-value="true" onclick="toggleAnimatedBg(this)"><span class="opt-icon">&#9730;</span>Animated BG</button>
                 </div>
             </div>
-
             <div class="customize-section">
                 <h4>Stats Layout</h4>
                 <div class="customize-options">
@@ -356,40 +281,6 @@
                     <button class="customize-option" data-group="statsLayout" data-value="list" onclick="setCustomOption('statsLayout','list',this)"><span class="opt-icon">&#9776;</span>List</button>
                 </div>
             </div>
-
-            <div class="customize-section">
-                <h4>Income vs Expenses Chart</h4>
-                <div class="customize-options">
-                    <button class="customize-option" data-group="incomeExpensesChart" data-value="doughnut" onclick="setCustomOption('incomeExpensesChart','doughnut',this)"><span class="opt-icon">&#9711;</span>Doughnut</button>
-                    <button class="customize-option" data-group="incomeExpensesChart" data-value="pie" onclick="setCustomOption('incomeExpensesChart','pie',this)"><span class="opt-icon">&#9673;</span>Pie</button>
-                    <button class="customize-option" data-group="incomeExpensesChart" data-value="bar" onclick="setCustomOption('incomeExpensesChart','bar',this)"><span class="opt-icon">&#9645;</span>Bar</button>
-                    <button class="customize-option" data-group="incomeExpensesChart" data-value="horizontalBar" onclick="setCustomOption('incomeExpensesChart','horizontalBar',this)"><span class="opt-icon">&#9644;</span>H-Bar</button>
-                </div>
-            </div>
-
-            <div class="customize-section">
-                <h4>Spending by Category Chart</h4>
-                <div class="customize-options">
-                    <button class="customize-option" data-group="categoryChart" data-value="bar" onclick="setCustomOption('categoryChart','bar',this)"><span class="opt-icon">&#9645;</span>Bar</button>
-                    <button class="customize-option" data-group="categoryChart" data-value="horizontalBar" onclick="setCustomOption('categoryChart','horizontalBar',this)"><span class="opt-icon">&#9644;</span>H-Bar</button>
-                    <button class="customize-option" data-group="categoryChart" data-value="pie" onclick="setCustomOption('categoryChart','pie',this)"><span class="opt-icon">&#9673;</span>Pie</button>
-                    <button class="customize-option" data-group="categoryChart" data-value="doughnut" onclick="setCustomOption('categoryChart','doughnut',this)"><span class="opt-icon">&#9711;</span>Doughnut</button>
-                    <button class="customize-option" data-group="categoryChart" data-value="line" onclick="setCustomOption('categoryChart','line',this)"><span class="opt-icon">&#8734;</span>Line</button>
-                </div>
-            </div>
-
-            <div class="customize-section">
-                <h4>Color Palette</h4>
-                <div class="customize-options palette-options">
-                    <button class="customize-option palette-opt" data-group="colorPalette" data-value="default" onclick="setCustomOption('colorPalette','default',this)"><span class="palette-swatch" style="background:linear-gradient(135deg,#0060a9,#4a9ae5)"></span>Default</button>
-                    <button class="customize-option palette-opt" data-group="colorPalette" data-value="ocean" onclick="setCustomOption('colorPalette','ocean',this)"><span class="palette-swatch" style="background:linear-gradient(135deg,#0077b6,#90e0ef)"></span>Ocean</button>
-                    <button class="customize-option palette-opt" data-group="colorPalette" data-value="forest" onclick="setCustomOption('colorPalette','forest',this)"><span class="palette-swatch" style="background:linear-gradient(135deg,#2d6a4f,#95d5b2)"></span>Forest</button>
-                    <button class="customize-option palette-opt" data-group="colorPalette" data-value="sunset" onclick="setCustomOption('colorPalette','sunset',this)"><span class="palette-swatch" style="background:linear-gradient(135deg,#e63946,#ffb4a2)"></span>Sunset</button>
-                    <button class="customize-option palette-opt" data-group="colorPalette" data-value="royal" onclick="setCustomOption('colorPalette','royal',this)"><span class="palette-swatch" style="background:linear-gradient(135deg,#7b2cbf,#e0aaff)"></span>Royal</button>
-                    <button class="customize-option palette-opt" data-group="colorPalette" data-value="monochrome" onclick="setCustomOption('colorPalette','monochrome',this)"><span class="palette-swatch" style="background:linear-gradient(135deg,#374151,#d1d5db)"></span>Mono</button>
-                </div>
-            </div>
-
             <div class="customize-section">
                 <h4>Visible Sections</h4>
                 <div class="customize-options">
@@ -397,7 +288,6 @@
                     <button class="customize-option toggle-opt" data-group="showCharts" data-value="true" onclick="toggleSection('showCharts',this)"><span class="opt-icon">&#10003;</span>Charts</button>
                 </div>
             </div>
-
             <div class="customize-section">
                 <h4>Background Color</h4>
                 <div class="bg-color-picker-wrap">
@@ -418,16 +308,6 @@
                     </div>
                 </div>
             </div>
-
-            <div class="customize-section">
-                <h4>Section Order (Drag to Reorder)</h4>
-                <div class="drag-section-list" id="drag-section-list">
-                    <div class="drag-item" draggable="true" data-section="stats"><span class="drag-handle">&#9776;</span>Stats</div>
-                    <div class="drag-item" draggable="true" data-section="charts"><span class="drag-handle">&#9776;</span>Charts</div>
-                    <div class="drag-item" draggable="true" data-section="recent"><span class="drag-handle">&#9776;</span>Recent Transactions</div>
-                </div>
-            </div>
-
             <div class="modal-actions">
                 <button class="btn btn-primary btn-full" onclick="closeCustomizeModal()">Done</button>
             </div>

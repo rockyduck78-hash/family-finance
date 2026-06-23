@@ -19,6 +19,7 @@
                 <a href="/transactions"><span class="nav-icon">&#9655;</span> <span class="nav-label">Transactions</span></a>
                 <a href="/transfer" class="active"><span class="nav-icon">&#8644;</span> <span class="nav-label">Transfer</span></a>
                 <a href="/family"><span class="nav-icon">&#128106;</span> <span class="nav-label">Family</span></a>
+                <a href="/interbank"><span class="nav-icon">&#127974;</span> <span class="nav-label">Inter Bank</span></a>
             </div>
             <div class="topnav-right">
                 <div class="topnav-user" id="user-menu">
@@ -222,48 +223,7 @@
                 </div>
             </div>
 
-            <!-- Bank of Philip Integration -->
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title">Bank of Philip</span>
-                </div>
-                <div id="bop-section" style="padding:16px;">
-                    <p style="margin-bottom:12px;color:var(--gray-400);">Send money from Family Finance to Bank of Philip.</p>
-
-                    <!-- Send to Bank of Philip -->
-                    <div style="margin-bottom:16px;padding:16px;background:var(--gray-800);border-radius:var(--radius);">
-                        <h4 style="margin-bottom:8px;color:var(--accent);">Send to Bank of Philip</h4>
-                        <p style="font-size:12px;color:var(--gray-400);margin-bottom:8px;">Withdraw from your Family Finance balance and deposit into a Bank of Philip account</p>
-                        <div class="form-group">
-                            <label>Bank of Philip Username</label>
-                            <input type="text" id="bop-username" placeholder="e.g., philip">
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Amount ($)</label>
-                                <input type="number" id="bop-amount" step="0.01" min="0.01" placeholder="0.00">
-                            </div>
-                            <div class="form-group">
-                                <label>Note (optional)</label>
-                                <input type="text" id="bop-note" placeholder="e.g., Savings transfer">
-                            </div>
-                        </div>
-                        <button class="btn btn-primary" onclick="sendToBankOfPhilip()">Send to Bank of Philip</button>
-                    </div>
-
-                    <!-- Receive from Bank of Philip (opens Bank of Philip in new tab) -->
-                    <div style="padding:16px;background:var(--gray-800);border-radius:var(--radius);">
-                        <h4 style="margin-bottom:8px;color:var(--accent);">Receive from Bank of Philip</h4>
-                        <p style="font-size:12px;color:var(--gray-400);margin-bottom:8px;">Ask someone on Bank of Philip to send you money using your Family Finance username</p>
-                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                            <button class="btn btn-secondary" onclick="copyFamilyFinanceUsername()">Copy My Username</button>
-                            <a href="https://bank-of-philip-130515044033.us-west2.run.app/" target="_blank" class="btn btn-secondary" style="text-decoration:none;">Open Bank of Philip</a>
-                        </div>
-                    </div>
-
-                    <div id="bop-status" style="margin-top:12px;padding:8px;border-radius:var(--radius);display:none;"></div>
-                </div>
-            </div>
+            <!-- Inter Bank System moved to /interbank page -->
         </main>
     </div>
 
@@ -294,11 +254,7 @@
             renderRequests(requestsData || []);
             renderFamilyGroup(familyData);
 
-            // Set payment processor link with token
-            const token = localStorage.getItem('token');
-            if (token) {
-                document.getElementById('doublons-link').href = 'https://family-payments-beta.vercel.app?token=' + encodeURIComponent(token);
-            }
+            // No payment processor link needed
         }
 
         function fmt(n) {
@@ -591,66 +547,6 @@
 
         loadData();
 
-        // ===== Bank of Philip Integration =====
-        const BOP_API = 'https://bank-of-philip-130515044033.us-west2.run.app';
-        const BOP_API_KEY = 'sov_sk_public_dev_key_2026';
-
-        function bopShowStatus(msg, isError) {
-            const el = document.getElementById('bop-status');
-            el.style.display = 'block';
-            el.style.background = isError ? 'var(--red-900)' : 'var(--green-900)';
-            el.style.color = isError ? 'var(--red-200)' : 'var(--green-200)';
-            el.textContent = msg;
-            setTimeout(() => el.style.display = 'none', 5000);
-        }
-
-        async function sendToBankOfPhilip() {
-            const toUsername = document.getElementById('bop-username').value.trim();
-            const amount = parseFloat(document.getElementById('bop-amount').value);
-            const note = document.getElementById('bop-note').value.trim();
-            if (!toUsername) return alert('Enter a Bank of Philip username');
-            if (!amount || amount <= 0) return alert('Enter a valid amount');
-
-            if (!confirm(`Send $${amount.toFixed(2)} from Family Finance to Bank of Philip user "${toUsername}"?`)) return;
-
-            try {
-                // Step 1: Record withdrawal in Family Finance
-                const ffResult = await apiPost('/api/external/withdraw', {
-                    username: user, amount, note: note || `Transfer to ${toUsername}`
-                });
-                if (ffResult.error) throw new Error(ffResult.error);
-
-                // Step 2: Deposit into Bank of Philip account
-                const res = await fetch(BOP_API + '/api/deposit', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + BOP_API_KEY
-                    },
-                    body: JSON.stringify({
-                        username: toUsername,
-                        amount: amount,
-                        sender: user,
-                        description: note || `Transfer from Family Finance`
-                    })
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || data.message || 'Bank of Philip deposit failed');
-
-                bopShowStatus(`Sent $${amount.toFixed(2)} to ${toUsername} on Bank of Philip`, false);
-                document.getElementById('bop-amount').value = '';
-                document.getElementById('bop-note').value = '';
-                loadData();
-            } catch (err) {
-                bopShowStatus(err.message, true);
-            }
-        }
-
-        function copyFamilyFinanceUsername() {
-            navigator.clipboard.writeText(user).then(() => {
-                bopShowStatus('Username copied: ' + user, false);
-            });
-        }
     </script>
 
     <!-- Change Password Modal -->

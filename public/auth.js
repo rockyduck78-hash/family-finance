@@ -111,6 +111,10 @@ function renderSidebar(activePage) {
                     <span class="icon">💸</span>
                     <span>Transfer</span>
                 </a>
+                <a href="/interbank" class="nav-item ${activePage === 'interbank' ? 'active' : ''}">
+                    <span class="icon">🏦</span>
+                    <span>Inter Bank</span>
+                </a>
             </nav>
             <div class="sidebar-footer">
                 <button class="logout-btn" onclick="logout()">

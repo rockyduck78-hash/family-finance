@@ -1859,6 +1859,10 @@ app.get('/family', (req, res) => {
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(__dirname, 'public', 'family.html'));
 });
+app.get('/interbank', (req, res) => {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(path.join(__dirname, 'public', 'interbank.html'));
+});
 app.get('/forgot-password', (req, res) => {
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(__dirname, 'public', 'forgot-password.html'));
