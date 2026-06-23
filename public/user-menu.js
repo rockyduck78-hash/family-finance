@@ -46,6 +46,7 @@ const defaultSettings = {
     fontFamily: 'system',
     glowMode: false,
     animatedBg: false,
+    swirlBg: false,
     bgColor: '#f9fafb',
     bgBrightness: 100,
     sectionOrder: ['stats', 'charts', 'recent']
@@ -105,6 +106,9 @@ function applyCustomization() {
     // Animated background
     document.body.classList.toggle('animated-bg', !!userSettings.animatedBg);
 
+    // Colorful swirl background
+    document.body.classList.toggle('swirl-bg', !!userSettings.swirlBg);
+
     // Background color
     if (userSettings.bgColor && userSettings.bgColor !== '#f9fafb') {
         document.documentElement.style.setProperty('--bg-color', userSettings.bgColor);
@@ -153,10 +157,12 @@ function showCustomize() {
         if (group && value) {
             if (group === 'accentColor') {
                 btn.classList.toggle('active', userSettings.accentColor === value);
-            } else if (group === 'glowMode') {
+            } else             if (group === 'glowMode') {
                 btn.classList.toggle('active', !!userSettings.glowMode);
             } else if (group === 'animatedBg') {
                 btn.classList.toggle('active', !!userSettings.animatedBg);
+            } else if (group === 'swirlBg') {
+                btn.classList.toggle('active', !!userSettings.swirlBg);
             } else {
                 btn.classList.toggle('active', String(userSettings[group]) === value);
             }
@@ -199,6 +205,12 @@ function toggleAnimatedBg(el) {
     const next = !userSettings.animatedBg;
     el.classList.toggle('active', next);
     saveSetting('animatedBg', next);
+}
+
+function toggleSwirlBg(el) {
+    const next = !userSettings.swirlBg;
+    el.classList.toggle('active', next);
+    saveSetting('swirlBg', next);
 }
 
 // Change Password Modal

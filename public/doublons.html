@@ -54,7 +54,7 @@
         <main class="main-content">
             <div class="page-header">
                 <h1>Doublons Bank</h1>
-                <p>Transfer money between Family Finance and Doublons Bank</p>
+                <p>Send and receive money between Family Finance and Doublons Bank</p>
             </div>
 
             <!-- Send to Doublons Bank -->
@@ -63,7 +63,7 @@
                     <span class="card-title">Send to Doublons Bank</span>
                 </div>
                 <div style="padding:16px;">
-                    <p style="margin-bottom:12px;color:var(--gray-400);">Withdraw from your Family Finance balance and send to a Doublons Bank user</p>
+                    <p style="margin-bottom:12px;color:var(--gray-400);">Withdraw from your Family Finance balance to send to Doublons Bank</p>
                     <div class="form-group">
                         <label>Doublons Bank Username</label>
                         <input type="text" id="doublons-to-username" placeholder="e.g., amelia">
@@ -78,7 +78,7 @@
                             <input type="text" id="doublons-note" placeholder="e.g., Savings transfer">
                         </div>
                     </div>
-                    <button class="btn btn-primary" onclick="sendToDoublons()">Withdraw to Doublons Bank</button>
+                    <button class="btn btn-primary" id="send-btn" onclick="sendToDoublons()">Send to Doublons Bank</button>
                 </div>
             </div>
 
@@ -88,9 +88,18 @@
                     <span class="card-title">Receive from Doublons Bank</span>
                 </div>
                 <div style="padding:16px;">
-                    <p style="margin-bottom:12px;color:var(--gray-400);">Ask someone on Doublons Bank to send you money using your Family Finance username</p>
+                    <p style="margin-bottom:12px;color:var(--gray-400);">Record money received from Doublons Bank into your Family Finance account</p>
+                    <div class="form-group">
+                        <label>Amount ($)</label>
+                        <input type="number" id="doublons-deposit-amount" step="0.01" min="0.01" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label>Note (optional)</label>
+                        <input type="text" id="doublons-deposit-note" placeholder="e.g., Payment from Doublons">
+                    </div>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                        <button class="btn btn-secondary" onclick="copyFamilyFinanceUsername()">Copy My Username</button>
+                        <button class="btn btn-primary" id="deposit-btn" onclick="depositFromDoublons()">Deposit to Family Finance</button>
+                        <button class="btn btn-secondary" onclick="copyMyUsername()">Copy My Username</button>
                         <a href="https://doublons-bank.vercel.app/" target="_blank" class="btn btn-secondary" style="text-decoration:none;">Open Doublons Bank</a>
                     </div>
                 </div>
@@ -103,61 +112,95 @@
     <script src="/auth.js"></script>
     <script src="/user-menu.js"></script>
     <script>
-        const currentUser = localStorage.getItem('currentUser');
-        const currentToken = localStorage.getItem('ff-token');
+        var currentUser = localStorage.getItem('currentUser');
+        var currentToken = localStorage.getItem('ff-token');
         if (!currentUser || !currentToken) { window.location.href = '/'; }
         initUserMenu(currentUser);
 
-        function doublonsShowStatus(msg, isError) {
-            const el = document.getElementById('doublons-status');
+        function showStatus(msg, isError) {
+            var el = document.getElementById('doublons-status');
             el.style.display = 'block';
             el.style.background = isError ? '#7f1d1d' : '#14532d';
             el.style.color = isError ? '#fecaca' : '#bbf7d0';
             el.textContent = msg;
-            setTimeout(() => el.style.display = 'none', 6000);
+            setTimeout(function() { el.style.display = 'none'; }, 8000);
         }
 
-        async function sendToDoublons() {
-            const btn = document.querySelector('.btn-primary');
-            const toUsername = document.getElementById('doublons-to-username').value.trim();
-            const amount = parseFloat(document.getElementById('doublons-amount').value);
-            const note = document.getElementById('doublons-note').value.trim();
-            if (!toUsername) return alert('Enter a Doublons Bank username');
-            if (!amount || amount <= 0) return alert('Enter a valid amount');
-
-            if (!confirm('Withdraw $' + amount.toFixed(2) + ' from Family Finance and send to Doublons Bank user "' + toUsername + '"?')) return;
-
-            btn.disabled = true;
-            btn.textContent = 'Processing...';
-            try {
-                const ffResult = await apiPost('/api/external/withdraw', {
-                    username: currentUser, amount: amount, note: note || 'Transfer to ' + toUsername + ' on Doublons Bank'
-                });
-                if (ffResult.error) throw new Error(ffResult.error);
-
-                doublonsShowStatus('Withdrew $' + amount.toFixed(2) + ' from Family Finance for transfer to ' + toUsername + '. Open Doublons Bank to complete the deposit.', false);
-                document.getElementById('doublons-amount').value = '';
-                document.getElementById('doublons-note').value = '';
-            } catch (err) {
-                doublonsShowStatus(err.message || 'Transfer failed. Please try again.', true);
-            } finally {
+        function setBtnLoading(btnId, loading, originalText) {
+            var btn = document.getElementById(btnId);
+            if (loading) {
+                btn.disabled = true;
+                btn.textContent = 'Processing...';
+            } else {
                 btn.disabled = false;
-                btn.textContent = 'Withdraw to Doublons Bank';
+                btn.textContent = originalText;
             }
         }
 
-        function copyFamilyFinanceUsername() {
-            navigator.clipboard.writeText(currentUser).then(() => {
-                doublonsShowStatus('Username copied: ' + currentUser, false);
-            }).catch(() => {
+        async function sendToDoublons() {
+            var toUsername = document.getElementById('doublons-to-username').value.trim();
+            var amount = parseFloat(document.getElementById('doublons-amount').value);
+            var note = document.getElementById('doublons-note').value.trim();
+            if (!toUsername) return alert('Enter a Doublons Bank username');
+            if (!amount || amount <= 0) return alert('Enter a valid amount');
+            if (!confirm('Send $' + amount.toFixed(2) + ' to Doublons Bank user "' + toUsername + '"?')) return;
+
+            setBtnLoading('send-btn', true, 'Send to Doublons Bank');
+            try {
+                var result = await apiPost('/api/external/withdraw', {
+                    username: currentUser,
+                    amount: amount,
+                    note: note || 'Transfer to ' + toUsername + ' on Doublons Bank'
+                });
+                if (result.error) throw new Error(result.error);
+                showStatus('Sent $' + amount.toFixed(2) + ' to ' + toUsername + ' on Doublons Bank! The recipient will see it in their Doublons Bank account.', false);
+                document.getElementById('doublons-amount').value = '';
+                document.getElementById('doublons-note').value = '';
+            } catch (err) {
+                showStatus(err.message || 'Transfer failed. Please try again.', true);
+            } finally {
+                setBtnLoading('send-btn', false, 'Send to Doublons Bank');
+            }
+        }
+
+        async function depositFromDoublons() {
+            var amount = parseFloat(document.getElementById('doublons-deposit-amount').value);
+            var note = document.getElementById('doublons-deposit-note').value.trim();
+            if (!amount || amount <= 0) return alert('Enter a valid amount');
+            if (!confirm('Deposit $' + amount.toFixed(2) + ' from Doublons Bank into your Family Finance account?')) return;
+
+            setBtnLoading('deposit-btn', true, 'Deposit to Family Finance');
+            try {
+                var result = await apiPost('/api/external/deposit', {
+                    username: currentUser,
+                    amount: amount,
+                    note: note || 'Deposit from Doublons Bank'
+                });
+                if (result.error) throw new Error(result.error);
+                showStatus('Deposited $' + amount.toFixed(2) + ' from Doublons Bank into your Family Finance account!', false);
+                document.getElementById('doublons-deposit-amount').value = '';
+                document.getElementById('doublons-deposit-note').value = '';
+            } catch (err) {
+                showStatus(err.message || 'Deposit failed. Please try again.', true);
+            } finally {
+                setBtnLoading('deposit-btn', false, 'Deposit to Family Finance');
+            }
+        }
+
+        function copyMyUsername() {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(currentUser).then(function() {
+                    showStatus('Username copied: ' + currentUser, false);
+                });
+            } else {
                 var ta = document.createElement('textarea');
                 ta.value = currentUser;
                 document.body.appendChild(ta);
                 ta.select();
                 document.execCommand('copy');
                 document.body.removeChild(ta);
-                doublonsShowStatus('Username copied: ' + currentUser, false);
-            });
+                showStatus('Username copied: ' + currentUser, false);
+            }
         }
     </script>
 
@@ -270,6 +313,7 @@
                 <div class="customize-options">
                     <button class="customize-option toggle-opt" data-group="glowMode" data-value="true" onclick="toggleGlow(this)"><span class="opt-icon">&#10024;</span>Glow</button>
                     <button class="customize-option toggle-opt" data-group="animatedBg" data-value="true" onclick="toggleAnimatedBg(this)"><span class="opt-icon">&#9730;</span>Animated BG</button>
+                    <button class="customize-option toggle-opt" data-group="swirlBg" data-value="true" onclick="toggleSwirlBg(this)"><span class="opt-icon">&#127752;</span>Colorful Swirl</button>
                 </div>
             </div>
             <div class="customize-section">

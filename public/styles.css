@@ -2095,3 +2095,78 @@ body.theme-blue .modal-wide .modal-header {
     z-index: -1;
     pointer-events: none;
 }
+
+/* Colorful Swirl Background - Melting Ice Cream */
+.swirl-bg {
+    position: relative;
+    overflow: hidden;
+}
+.swirl-bg::before {
+    content: '';
+    position: fixed;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background:
+        radial-gradient(ellipse at 20% 50%, rgba(255,107,107,0.5) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(78,205,196,0.5) 0%, transparent 50%),
+        radial-gradient(ellipse at 40% 80%, rgba(199,125,255,0.5) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 60%, rgba(255,195,0,0.4) 0%, transparent 50%),
+        radial-gradient(ellipse at 30% 30%, rgba(0,206,209,0.4) 0%, transparent 50%),
+        radial-gradient(ellipse at 60% 90%, rgba(255,105,180,0.4) 0%, transparent 50%);
+    animation: swirlMove 12s ease-in-out infinite alternate, swirlRotate 20s linear infinite;
+    z-index: -2;
+    filter: blur(40px);
+}
+.swirl-bg::after {
+    content: '';
+    position: fixed;
+    top: -30%; left: -30%;
+    width: 160%; height: 160%;
+    background:
+        radial-gradient(ellipse at 50% 50%, rgba(255,140,0,0.3) 0%, transparent 40%),
+        radial-gradient(ellipse at 20% 80%, rgba(0,191,255,0.3) 0%, transparent 40%),
+        radial-gradient(ellipse at 80% 40%, rgba(144,238,144,0.3) 0%, transparent 40%);
+    animation: swirlDrip 8s ease-in-out infinite alternate;
+    z-index: -2;
+    filter: blur(60px);
+}
+@keyframes swirlMove {
+    0% { transform: translate(0%, 0%) rotate(0deg); }
+    33% { transform: translate(5%, -3%) rotate(5deg); }
+    66% { transform: translate(-3%, 5%) rotate(-3deg); }
+    100% { transform: translate(2%, 2%) rotate(2deg); }
+}
+@keyframes swirlRotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+@keyframes swirlDrip {
+    0% { transform: translate(0%, 0%) scaleY(1); }
+    50% { transform: translate(2%, 3%) scaleY(1.05); }
+    100% { transform: translate(-1%, -2%) scaleY(0.98); }
+}
+.swirl-bg.theme-dark::before {
+    background:
+        radial-gradient(ellipse at 20% 50%, rgba(139,0,0,0.6) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(0,100,100,0.6) 0%, transparent 50%),
+        radial-gradient(ellipse at 40% 80%, rgba(75,0,130,0.6) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 60%, rgba(204,153,0,0.5) 0%, transparent 50%),
+        radial-gradient(ellipse at 30% 30%, rgba(0,100,150,0.5) 0%, transparent 50%),
+        radial-gradient(ellipse at 60% 90%, rgba(200,0,100,0.5) 0%, transparent 50%);
+    filter: blur(50px);
+}
+.swirl-bg.theme-dark::after {
+    background:
+        radial-gradient(ellipse at 50% 50%, rgba(200,100,0,0.35) 0%, transparent 40%),
+        radial-gradient(ellipse at 20% 80%, rgba(0,100,200,0.35) 0%, transparent 40%),
+        radial-gradient(ellipse at 80% 40%, rgba(0,150,0,0.3) 0%, transparent 40%);
+    filter: blur(70px);
+}
+.swirl-bg.theme-blue::before {
+    background:
+        radial-gradient(ellipse at 20% 50%, rgba(0,100,200,0.5) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(0,200,255,0.5) 0%, transparent 50%),
+        radial-gradient(ellipse at 40% 80%, rgba(100,0,200,0.5) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 60%, rgba(0,150,255,0.4) 0%, transparent 50%);
+    filter: blur(45px);
+}
