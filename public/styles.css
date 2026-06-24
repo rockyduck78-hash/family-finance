@@ -2060,7 +2060,6 @@ body.theme-blue .modal-wide .modal-header {
 /* Live Animated Background */
 .animated-bg {
     position: relative;
-    overflow: hidden;
 }
 .animated-bg::before {
     content: '';
@@ -2099,7 +2098,6 @@ body.theme-blue .modal-wide .modal-header {
 /* Colorful Swirl Background - Melting Ice Cream */
 .swirl-bg {
     position: relative;
-    overflow: hidden;
 }
 .swirl-bg::before {
     content: '';
