@@ -230,6 +230,7 @@
     </div>
 
     <script src="/auth.js"></script>
+    <script src="/notifications.js"></script>
     <script src="/user-menu.js"></script>
     <script>
         const user = localStorage.getItem('currentUser');
@@ -317,37 +318,37 @@
         async function createFamily() {
             const name = document.getElementById('family-create-name').value.trim();
             const customCode = document.getElementById('family-create-code').value.trim();
-            if (!name) return alert('Enter a group name');
+            if (!name) return notifyError('Enter a group name');
             const data = await apiPost('/api/family/create', { name, customCode });
-            if (data.error) return alert(data.error);
+            if (data.error) return notifyError(data.error);
             loadData();
         }
 
         async function joinFamily() {
             const code = document.getElementById('family-join-code').value.trim().toUpperCase();
-            if (!code) return alert('Enter a join code');
+            if (!code) return notifyError('Enter a join code');
             const data = await apiPost('/api/family/join', { code });
-            if (data.error) return alert(data.error);
+            if (data.error) return notifyError(data.error);
             loadData();
         }
 
         async function leaveFamily() {
             if (!confirm('Leave your family group?')) return;
             const data = await apiPost('/api/family/leave', {});
-            if (data.error) return alert(data.error);
+            if (data.error) return notifyError(data.error);
             loadData();
         }
 
         async function familyApprove(id) {
             const data = await apiPost('/api/family/approve/' + id, {});
-            if (data.error) return alert(data.error);
+            if (data.error) return notifyError(data.error);
             loadFamilyPending();
             loadData();
         }
 
         async function familyDeny(id) {
             const data = await apiPost('/api/family/deny/' + id, {});
-            if (data.error) return alert(data.error);
+            if (data.error) return notifyError(data.error);
             loadFamilyPending();
         }
 
@@ -497,13 +498,13 @@
 
         async function approveRequest(id) {
             const data = await apiPost('/api/user/' + user + '/approve-request/' + id, {});
-            if (data.error) return alert(data.error);
+            if (data.error) return notifyError(data.error);
             loadData();
         }
 
         async function denyRequest(id) {
             const data = await apiPost('/api/user/' + user + '/deny-request/' + id, {});
-            if (data.error) return alert(data.error);
+            if (data.error) return notifyError(data.error);
             loadData();
         }
 
@@ -512,16 +513,16 @@
             const to = document.getElementById('transfer-to').value;
             const amount = parseFloat(document.getElementById('transfer-amount').value);
             const note = document.getElementById('transfer-note').value.trim();
-            if (!to) return alert('Select a recipient');
-            if (to === user) return alert("Can't send to yourself");
+            if (!to) return notifyError('Select a recipient');
+            if (to === user) return notifyError("Can't send to yourself");
             const data = await apiPost('/api/transfer', {
                 from: user, to, amount, note
             });
-            if (data.error) return alert(data.error);
+            if (data.error) return notifyError(data.error);
             if (data.pending) {
-                alert('Transfer pending owner approval');
+                notifyInfo('Transfer pending owner approval');
             } else {
-                alert('Sent $' + amount.toFixed(2) + ' to ' + to);
+                notifySuccess('Sent $' + amount.toFixed(2) + ' to ' + to);
             }
             e.target.reset();
             document.getElementById('transfer-type').value = 'custom';
@@ -538,12 +539,12 @@
             const toUsername = document.getElementById('request-to').value;
             const amount = parseFloat(document.getElementById('request-amount').value);
             const description = document.getElementById('request-desc').value.trim();
-            if (!toUsername) return alert('Select a user to request from');
+            if (!toUsername) return notifyError('Select a user to request from');
             const data = await apiPost('/api/user/' + user + '/request-money', {
                 toUsername, amount, description
             });
-            if (data.error) return alert(data.error);
-            alert('Request sent to ' + toUsername);
+            if (data.error) return notifyError(data.error);
+            notifySuccess('Request sent to ' + toUsername);
             e.target.reset();
         });
 

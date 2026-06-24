@@ -7,6 +7,7 @@
     <title>Family Finance - Smart Family Banking</title>
     <link rel="stylesheet" href="/styles.css">
     <script src="/particles.js" defer></script>
+    <script src="/notifications.js"></script>
 </head>
 <body>
     <div class="landing-page">
@@ -153,7 +154,7 @@
             const password = document.getElementById('login-password').value;
             const code = document.getElementById('login-2fa-code').value.trim();
 
-            if (!username || !password) return alert('Please fill in all fields');
+            if (!username || !password) return notifyError('Please fill in all fields');
 
             if (pendingLogin && code) {
                 const res = await fetch(`/api/user/${pendingLogin}/2fa/login`, {
@@ -163,7 +164,7 @@
                     body: JSON.stringify({ code })
                 });
                 const data = await res.json();
-                if (data.error) return alert(data.error);
+                if (data.error) return notifyError(data.error);
                 localStorage.setItem('currentUser', pendingLogin);
                 localStorage.setItem('ff-token', data.token);
                 if (data.trustedDevice) {
@@ -183,7 +184,7 @@
                 body: JSON.stringify({ username, password })
             });
             const data = await res.json();
-            if (data.error) return alert(data.error);
+            if (data.error) return notifyError(data.error);
             if (data.requires2FA) {
                 pendingLogin = username;
                 pendingTempToken = data.token;
@@ -201,14 +202,14 @@
             const username = document.getElementById('reg-username').value.trim();
             const email = document.getElementById('reg-email').value.trim();
             const password = document.getElementById('reg-password').value;
-            if (!username || !password || !email) return alert('Please fill in all fields');
+            if (!username || !password || !email) return notifyError('Please fill in all fields');
             const res = await fetch('/api/register', {
                 method: 'POST', credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password, email })
             });
             const data = await res.json();
-            if (data.error) return alert(data.error);
+            if (data.error) return notifyError(data.error);
             localStorage.setItem('currentUser', username);
             localStorage.setItem('ff-token', data.token);
             window.location.href = '/dashboard';

@@ -125,6 +125,7 @@
     </div>
 
     <script src="/auth.js"></script>
+    <script src="/notifications.js"></script>
     <script src="/user-menu.js"></script>
     <script>
         const user = localStorage.getItem('currentUser');
@@ -215,7 +216,6 @@
                         </div>
                         <div class="transaction-right">
                             <span class="transaction-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}</span>
-                            <button class="btn-ghost" onclick="deleteTransaction(${t.id})">&#10005;</button>
                         </div>
                     </div>
                 `).join('');
@@ -241,36 +241,20 @@
                 const allTx = [...transactions, newTx];
                 const data = await apiPut('/api/user/' + user + '/transactions', { transactions: allTx });
                 if (data.error) {
-                    alert(data.error);
+                    notifyError(data.error);
                 } else {
                     await loadData();
                     e.target.reset();
                 }
             } catch (err) {
-                alert('Failed to save transaction');
+                notifyError('Failed to save transaction');
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Add Transaction';
             }
         });
 
-        async function deleteTransaction(id) {
-            const tx = transactions.find(t => t.id === id);
-            if (!tx) return;
-            if (!confirm('Delete "' + tx.description + '"?')) return;
-            const remaining = transactions.filter(t => t.id !== id);
-            try {
-                const data = await apiPut('/api/user/' + user + '/transactions', { transactions: remaining });
-                if (data.error) {
-                    alert(data.error);
-                } else {
-                    await loadData();
-                }
-            } catch (err) {
-                alert('Failed to delete');
-                await loadData();
-            }
-        }
+
 
     </script>
 

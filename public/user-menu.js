@@ -228,11 +228,11 @@ async function submitChangePw() {
     const current = document.getElementById('pw-current').value;
     const newPw = document.getElementById('pw-new').value;
     const confirm = document.getElementById('pw-confirm').value;
-    if (!current || !newPw) return alert('Fill in all fields');
-    if (newPw !== confirm) return alert('Passwords do not match');
+    if (!current || !newPw) return notifyError('Fill in all fields');
+    if (newPw !== confirm) return notifyError('Passwords do not match');
     const data = await apiPost('/api/user/' + user + '/change-password', { currentPassword: current, newPassword: newPw });
-    if (data.error) return alert(data.error);
-    alert('Password changed!');
+    if (data.error) return notifyError(data.error);
+    notifySuccess('Password changed!');
     closeChangePwModal();
     document.getElementById('pw-current').value = '';
     document.getElementById('pw-new').value = '';
@@ -253,15 +253,15 @@ async function submitChangeUn() {
     const user = localStorage.getItem('currentUser');
     const newUn = document.getElementById('un-new').value.trim();
     const pw = document.getElementById('un-password').value;
-    if (!newUn || !pw) return alert('Fill in all fields');
+    if (!newUn || !pw) return notifyError('Fill in all fields');
     const data = await apiPost('/api/user/' + user + '/change-username', { newUsername: newUn, password: pw });
-    if (data.error) return alert(data.error);
+    if (data.error) return notifyError(data.error);
     localStorage.setItem('currentUser', data.newUsername);
     if (data.token) localStorage.setItem('ff-token', data.token);
     document.getElementById('user-display').textContent = data.newUsername;
     document.getElementById('user-avatar').textContent = data.newUsername[0].toUpperCase();
     closeChangeUnModal();
-    alert('Username changed!');
+    notifySuccess('Username changed!');
     document.getElementById('un-new').value = '';
     document.getElementById('un-password').value = '';
 }
@@ -327,7 +327,7 @@ async function start2FASetup() {
 
     try {
         const data = await apiPost('/api/user/' + user + '/2fa/setup', {});
-        if (data.error) return alert(data.error);
+        if (data.error) return notifyError(data.error);
 
         statusEl.innerHTML = '<p style="color:#22c55e;font-weight:600">Scan QR code and enter code to enable</p>';
         setupEl.style.display = 'block';
@@ -336,22 +336,22 @@ async function start2FASetup() {
         actionBtn.style.display = 'inline-block';
         actionBtn.onclick = verify2FASetup;
     } catch (e) {
-        alert('Failed to start 2FA setup');
+        notifyError('Failed to start 2FA setup');
     }
 }
 
 async function verify2FASetup() {
     const user = localStorage.getItem('currentUser');
     const code = document.getElementById('twofa-verify-code').value.trim();
-    if (!code || code.length !== 6) return alert('Enter a 6-digit code');
+    if (!code || code.length !== 6) return notifyError('Enter a 6-digit code');
 
     try {
         const data = await apiPost('/api/user/' + user + '/2fa/verify', { code });
-        if (data.error) return alert(data.error);
-        alert('2FA enabled successfully!');
+        if (data.error) return notifyError(data.error);
+        notifySuccess('2FA enabled successfully!');
         close2FAModal();
     } catch (e) {
-        alert('Failed to verify code');
+        notifyError('Failed to verify code');
     }
 }
 
@@ -359,23 +359,23 @@ async function disable2FA() {
     const user = localStorage.getItem('currentUser');
     const password = document.getElementById('twofa-disable-pw').value;
     const code = document.getElementById('twofa-disable-code').value.trim();
-    if (!password) return alert('Enter your password');
-    if (!code || code.length !== 6) return alert('Enter a 6-digit code');
+    if (!password) return notifyError('Enter your password');
+    if (!code || code.length !== 6) return notifyError('Enter a 6-digit code');
 
     try {
         const data = await apiPost('/api/user/' + user + '/2fa/disable', { password, code });
-        if (data.error) return alert(data.error);
-        alert('2FA has been disabled');
+        if (data.error) return notifyError(data.error);
+        notifySuccess('2FA has been disabled');
         close2FAModal();
     } catch (e) {
-        alert('Failed to disable 2FA');
+        notifyError('Failed to disable 2FA');
     }
 }
 
 // Forget trusted device - will require 2FA code on next login
 async function forgetDevice() {
     localStorage.removeItem('ff-trusted');
-    alert('This device has been forgotten. You will need to enter your 2FA code on next login.');
+    notifyInfo('This device has been forgotten. You will need to enter your 2FA code on next login.');
 }
 
 // Background Color

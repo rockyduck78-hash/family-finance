@@ -110,6 +110,7 @@
     </div>
 
     <script src="/auth.js"></script>
+    <script src="/notifications.js"></script>
     <script src="/user-menu.js"></script>
     <script>
         var currentUser = localStorage.getItem('currentUser');
@@ -141,8 +142,8 @@
             var toUsername = document.getElementById('doublons-to-username').value.trim();
             var amount = parseFloat(document.getElementById('doublons-amount').value);
             var note = document.getElementById('doublons-note').value.trim();
-            if (!toUsername) return alert('Enter a Doublons Bank username');
-            if (!amount || amount <= 0) return alert('Enter a valid amount');
+            if (!toUsername) return notifyError('Enter a Doublons Bank username');
+            if (!amount || amount <= 0) return notifyError('Enter a valid amount');
             if (!confirm('Send $' + amount.toFixed(2) + ' to Doublons Bank user "' + toUsername + '"?')) return;
 
             setBtnLoading('send-btn', true, 'Send to Doublons Bank');
@@ -166,7 +167,7 @@
         async function depositFromDoublons() {
             var amount = parseFloat(document.getElementById('doublons-deposit-amount').value);
             var note = document.getElementById('doublons-deposit-note').value.trim();
-            if (!amount || amount <= 0) return alert('Enter a valid amount');
+            if (!amount || amount <= 0) return notifyError('Enter a valid amount');
             if (!confirm('Deposit $' + amount.toFixed(2) + ' from Doublons Bank into your Family Finance account?')) return;
 
             setBtnLoading('deposit-btn', true, 'Deposit to Family Finance');
