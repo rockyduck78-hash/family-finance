@@ -526,6 +526,40 @@ body {
     letter-spacing: -0.02em;
 }
 
+.topnav-balance {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: var(--green-100);
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--green-900);
+    white-space: nowrap;
+    margin-right: 8px;
+}
+.topnav-balance .balance-label {
+    font-weight: 400;
+    font-size: 12px;
+    color: var(--green-900);
+    opacity: 0.7;
+}
+.theme-dark .topnav-balance {
+    background: rgba(22, 163, 74, 0.15);
+    color: #4ade80;
+}
+.theme-dark .topnav-balance .balance-label {
+    color: #4ade80;
+}
+.theme-blue .topnav-balance {
+    background: rgba(22, 163, 74, 0.15);
+    color: #4ade80;
+}
+.theme-blue .topnav-balance .balance-label {
+    color: #4ade80;
+}
+
 .topnav-nav {
     display: flex;
     align-items: center;

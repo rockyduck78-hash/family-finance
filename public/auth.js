@@ -48,6 +48,22 @@ function formatCurrency(amount) {
     }).format(amount);
 }
 
+async function loadNavBalance() {
+    const user = getUser();
+    if (!user) return;
+    try {
+        const data = await apiGet('/api/user/' + user);
+        if (!data.error && data.balance !== undefined) {
+            const el = document.getElementById('nav-balance-amount');
+            if (el) el.textContent = formatCurrency(data.balance);
+        }
+    } catch (e) {}
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (getUser()) loadNavBalance();
+});
+
 async function apiGet(url) {
     const res = await fetch(API + url, { credentials: 'same-origin', headers: authHeaders() });
     if (res.status === 401) { clearUser(); window.location.href = '/'; return { error: 'Session expired' }; }

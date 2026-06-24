@@ -15,13 +15,18 @@
                 <div class="brand-icon">$</div>
                 <span class="brand-text">Family Finance</span>
             </a>
+            <div class="topnav-balance" id="nav-balance">
+                <span class="balance-label">Balance</span>
+                <span id="nav-balance-amount">$0.00</span>
+            </div>
             <div class="topnav-nav">
                 <a href="/dashboard"><span class="nav-icon">&#9632;</span> <span class="nav-label">Dashboard</span></a>
                 <a href="/transactions" class="active"><span class="nav-icon">&#9655;</span> <span class="nav-label">Transactions</span></a>
+                <a href="/history"><span class="nav-icon">&#128221;</span> <span class="nav-label">History</span></a>
                 <a href="/transfer"><span class="nav-icon">&#8644;</span> <span class="nav-label">Transfer</span></a>
                 <a href="/family"><span class="nav-icon">&#128106;</span> <span class="nav-label">Family</span></a>
-                <a href="/interbank"><span class="nav-icon">&#127974;</span> <span class="nav-label">Inter Bank</span></a>
-                <a href="/doublons"><span class="nav-icon">&#128176;</span> <span class="nav-label">Doublons</span></a>
+                <a href="/interbank"><span class="nav-icon">&#127974;</span> <span class="nav-label">Bank of Philip</span></a>
+                <a href="/doublons"><span class="nav-icon">&#128176;</span> <span class="nav-label">Doublons Bank</span></a>
             </div>
             <div class="topnav-right">
                 <div class="topnav-user" id="user-menu">
@@ -111,14 +116,8 @@
                     </form>
                 </div>
 
-                <!-- History -->
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">History</span>
-                    </div>
-                    <div class="transaction-list" id="transactions-list">
-                        <div class="empty-state"><span class="icon">&#128221;</span><p>No transactions yet</p></div>
-                    </div>
+                <div style="margin-top:16px;text-align:center;">
+                    <a href="/history" class="btn btn-secondary">View Full Transaction History</a>
                 </div>
             </div>
         </main>
@@ -151,7 +150,6 @@
                 }
                 transactions = data.transactions || [];
                 pendingApprovals = data.pendingApprovals || [];
-                renderTransactions();
                 renderApprovals();
             } catch (err) {
                 console.error('Failed to load data:', err);
@@ -192,33 +190,6 @@
         async function deny(id) {
             await apiPost('/api/user/' + user + '/deny/' + id, {});
             loadData();
-        }
-
-        function formatCurrency(amount) {
-            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-        }
-
-        function renderTransactions() {
-            const list = document.getElementById('transactions-list');
-            if (transactions.length === 0) {
-                list.innerHTML = '<div class="empty-state"><span class="icon">&#128221;</span><p>No transactions yet</p></div>';
-                return;
-            }
-            const sorted = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
-            list.innerHTML = sorted.map(t => `
-                    <div class="transaction-item">
-                        <div class="transaction-left">
-                            <div class="transaction-icon">${t.type === 'income' ? '&#8593;' : '&#8595;'}</div>
-                            <div class="transaction-info">
-                                <h4>${escapeHtml(t.description)}</h4>
-                                <span>${escapeHtml(t.category)} &bull; ${new Date(t.date).toLocaleDateString()}</span>
-                            </div>
-                        </div>
-                        <div class="transaction-right">
-                            <span class="transaction-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}</span>
-                        </div>
-                    </div>
-                `).join('');
         }
 
         document.getElementById('transaction-form').addEventListener('submit', async (e) => {

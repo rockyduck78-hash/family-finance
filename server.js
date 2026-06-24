@@ -374,13 +374,17 @@ app.get('/api/user/:username', authMiddleware, ownerOnly, async (req, res) => {
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
+        const txs = user.transactions || [];
+        const income = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+        const expenses = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
         res.json({
-            transactions: user.transactions || [],
+            transactions: txs,
             kids: user.kids || [],
             pendingApprovals: user.pendingApprovals || [],
             scheduledPayments: user.scheduledPayments || [],
             settings: user.settings || {},
-            twoFactorEnabled: user.twoFactorEnabled || false
+            twoFactorEnabled: user.twoFactorEnabled || false,
+            balance: income - expenses
         });
     } catch (err) {
         console.error(err.message);
@@ -1740,6 +1744,10 @@ app.get('/dashboard', (req, res) => {
 app.get('/transactions', (req, res) => {
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(__dirname, 'public', 'transactions.html'));
+});
+app.get('/history', (req, res) => {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(path.join(__dirname, 'public', 'history.html'));
 });
 app.get('/transfer', (req, res) => {
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');

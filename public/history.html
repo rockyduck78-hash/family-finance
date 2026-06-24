@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <title>Family - Family Finance</title>
+    <title>History - Family Finance</title>
     <link rel="stylesheet" href="/styles.css">
     <script src="/particles.js" defer></script>
 </head>
@@ -22,9 +22,9 @@
             <div class="topnav-nav">
                 <a href="/dashboard"><span class="nav-icon">&#9632;</span> <span class="nav-label">Dashboard</span></a>
                 <a href="/transactions"><span class="nav-icon">&#9655;</span> <span class="nav-label">Transactions</span></a>
-                <a href="/history"><span class="nav-icon">&#128221;</span> <span class="nav-label">History</span></a>
+                <a href="/history" class="active"><span class="nav-icon">&#128221;</span> <span class="nav-label">History</span></a>
                 <a href="/transfer"><span class="nav-icon">&#8644;</span> <span class="nav-label">Transfer</span></a>
-                <a href="/family" class="active"><span class="nav-icon">&#128106;</span> <span class="nav-label">Family</span></a>
+                <a href="/family"><span class="nav-icon">&#128106;</span> <span class="nav-label">Family</span></a>
                 <a href="/interbank"><span class="nav-icon">&#127974;</span> <span class="nav-label">Bank of Philip</span></a>
                 <a href="/doublons"><span class="nav-icon">&#128176;</span> <span class="nav-label">Doublons Bank</span></a>
             </div>
@@ -58,79 +58,16 @@
 
         <main class="main-content">
             <div class="page-header">
-                <h1>Family Group</h1>
-                <p id="family-subtitle">Manage your family group</p>
+                <h1>Transaction History</h1>
+                <p>View all your past transactions</p>
             </div>
 
-            <!-- Not in a group -->
-            <div id="no-group-view">
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">No Family Group</span>
-                    </div>
-                    <div style="padding:16px;">
-                        <p style="color:var(--gray-400);margin-bottom:16px;">You are not in a family group. Create or join one from the <a href="/transfer">Transfer</a> page.</p>
-                    </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">All Transactions</span>
                 </div>
-            </div>
-
-            <!-- In a group but not owner -->
-            <div id="member-view" style="display:none;">
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">Your Family Group</span>
-                    </div>
-                    <div style="padding:16px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                            <div>
-                                <strong id="member-group-name"></strong>
-                                <span id="member-count" style="margin-left:8px;color:var(--gray-400);font-size:13px;"></span>
-                            </div>
-                        </div>
-                        <div style="margin-bottom:16px;">
-                            <label style="font-size:12px;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.05em;">Join Code</label>
-                            <div id="member-code-display" style="margin-top:4px;padding:12px;background:var(--gray-800);border-radius:var(--radius);font-family:monospace;font-size:24px;text-align:center;letter-spacing:6px;"></div>
-                        </div>
-                        <div id="member-list"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Owner view -->
-            <div id="owner-view" style="display:none;">
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">Group Info</span>
-                    </div>
-                    <div style="padding:16px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                            <div>
-                                <strong id="owner-group-name"></strong>
-                                <span id="owner-member-count" style="margin-left:8px;color:var(--gray-400);font-size:13px;"></span>
-                            </div>
-                        </div>
-                        <div style="margin-bottom:16px;">
-                            <label style="font-size:12px;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.05em;">Share This Join Code</label>
-                            <div id="owner-code-display" style="margin-top:4px;padding:12px;background:var(--gray-800);border-radius:var(--radius);font-family:monospace;font-size:24px;text-align:center;letter-spacing:6px;"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">Members</span>
-                    </div>
-                    <div id="owner-member-list" style="padding:16px;">
-                        <div class="empty-state"><span class="icon">&#128106;</span><p>No members</p></div>
-                    </div>
-                </div>
-
-                <div class="card" id="member-detail-card" style="display:none;">
-                    <div class="card-header">
-                        <span class="card-title" id="member-detail-title">Member Transactions</span>
-                    </div>
-                    <div id="member-detail-transactions" style="padding:16px;">
-                    </div>
+                <div class="transaction-list" id="history-list">
+                    <div class="empty-state"><span class="icon">&#128221;</span><p>No transactions yet</p></div>
                 </div>
             </div>
         </main>
@@ -144,144 +81,36 @@
         if (!user) window.location.href = '/';
         initUserMenu(user);
 
-        let familyInfo = null;
-        let members = [];
-
-        async function loadData() {
-            const info = await apiGet('/api/family/info');
-            familyInfo = info;
-
-            const noGroup = document.getElementById('no-group-view');
-            const memberView = document.getElementById('member-view');
-            const ownerView = document.getElementById('owner-view');
-
-            if (!info) {
-                noGroup.style.display = 'block';
-                memberView.style.display = 'none';
-                ownerView.style.display = 'none';
+        async function loadHistory() {
+            const data = await apiGet('/api/user/' + user);
+            if (data.error) return;
+            const txs = data.transactions || [];
+            const list = document.getElementById('history-list');
+            if (txs.length === 0) {
+                list.innerHTML = '<div class="empty-state"><span class="icon">&#128221;</span><p>No transactions yet</p></div>';
                 return;
             }
-
-            noGroup.style.display = 'none';
-            document.getElementById('family-subtitle').textContent = info.name;
-
-            if (info.isOwner) {
-                memberView.style.display = 'none';
-                ownerView.style.display = 'block';
-                document.getElementById('owner-group-name').textContent = info.name;
-                document.getElementById('owner-member-count').textContent = info.memberCount + ' member' + (info.memberCount !== 1 ? 's' : '');
-                document.getElementById('owner-code-display').textContent = info.code;
-                loadOwnerMembers();
-            } else {
-                memberView.style.display = 'block';
-                ownerView.style.display = 'none';
-                document.getElementById('member-group-name').textContent = info.name;
-                document.getElementById('member-count').textContent = info.memberCount + ' member' + (info.memberCount !== 1 ? 's' : '');
-                document.getElementById('member-code-display').textContent = info.code;
-                loadMemberList();
-            }
-        }
-
-        async function loadMemberList() {
-            const data = await apiGet('/api/family/members');
-            const list = document.getElementById('member-list');
-            if (data.error || !Array.isArray(data)) {
-                list.innerHTML = '<p style="color:var(--gray-400);">Could not load members</p>';
-                return;
-            }
-            members = data;
-            list.innerHTML = '<h4 style="margin-bottom:12px;">Members</h4>' + data.map(m => `
-                <div class="transaction-item">
-                    <div class="transaction-left">
-                        <div class="transaction-icon">${m.isOwner ? '&#128081;' : '&#128100;'}</div>
-                        <div class="transaction-info">
-                            <h4>${escapeHtml(m.username)} ${m.isOwner ? '<span style="font-size:11px;color:var(--gold-400);">(Owner)</span>' : ''}</h4>
-                            <span>${m.transactionCount} transactions</span>
-                        </div>
-                    </div>
-                    <span class="transaction-amount ${m.balance >= 0 ? 'income' : 'expense'}">${fmt(m.balance)}</span>
-                </div>
-            `).join('');
-        }
-
-        async function loadOwnerMembers() {
-            const data = await apiGet('/api/family/members');
-            const list = document.getElementById('owner-member-list');
-            if (data.error || !Array.isArray(data) || !data.length) {
-                list.innerHTML = '<div class="empty-state"><span class="icon">&#128106;</span><p>No members</p></div>';
-                return;
-            }
-            members = data;
-            list.innerHTML = data.map(m => `
-                <div class="transaction-item" style="cursor:pointer;" onclick="viewMemberTransactions('${escapeHtml(m.username)}')">
-                    <div class="transaction-left">
-                        <div class="transaction-icon">${m.isOwner ? '&#128081;' : '&#128100;'}</div>
-                        <div class="transaction-info">
-                            <h4>${escapeHtml(m.username)} ${m.isOwner ? '<span style="font-size:11px;color:var(--gold-400);">(Owner)</span>' : ''}</h4>
-                            <span>${m.transactionCount} transactions &middot; Click to view history</span>
-                        </div>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:12px;">
-                        <span class="transaction-amount ${m.balance >= 0 ? 'income' : 'expense'}">${fmt(m.balance)}</span>
-                        ${!m.isOwner ? '<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();removeMember(\'' + escapeHtml(m.username) + '\')">Remove</button>' : ''}
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        async function viewMemberTransactions(memberName) {
-            const data = await apiGet('/api/family/member/' + memberName + '/transactions');
-            const card = document.getElementById('member-detail-card');
-            const title = document.getElementById('member-detail-title');
-            const txList = document.getElementById('member-detail-transactions');
-
-            card.style.display = 'block';
-            title.textContent = memberName + "'s Transactions";
-
-            if (data.error || !data.transactions) {
-                txList.innerHTML = '<p style="color:var(--gray-400);">Could not load transactions</p>';
-                return;
-            }
-
-            const txs = data.transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
-            if (!txs.length) {
-                txList.innerHTML = '<div class="empty-state"><span class="icon">&#9655;</span><p>No transactions yet</p></div>';
-                return;
-            }
-
-            txList.innerHTML = txs.map(t => `
+            const sorted = [...txs].sort((a, b) => new Date(b.date) - new Date(a.date));
+            list.innerHTML = sorted.map(t => `
                 <div class="transaction-item">
                     <div class="transaction-left">
                         <div class="transaction-icon">${t.type === 'income' ? '&#8593;' : '&#8595;'}</div>
                         <div class="transaction-info">
                             <h4>${escapeHtml(t.description)}</h4>
-                            <span>${new Date(t.date).toLocaleDateString()}</span>
+                            <span>${escapeHtml(t.category)} &bull; ${new Date(t.date).toLocaleDateString()}</span>
                         </div>
                     </div>
-                    <span class="transaction-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${fmt(t.amount)}</span>
+                    <div class="transaction-right">
+                        <span class="transaction-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}</span>
+                    </div>
                 </div>
             `).join('');
-
-            card.scrollIntoView({ behavior: 'smooth' });
         }
 
-        async function removeMember(memberName) {
-            if (!confirm('Remove ' + memberName + ' from the group?')) return;
-            const data = await apiPost('/api/family/remove-member', { username: memberName });
-            if (data.error) return notifyError(data.error);
-            document.getElementById('member-detail-card').style.display = 'none';
-            loadOwnerMembers();
-            loadData();
-        }
-
-        function fmt(n) {
-            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
-        }
-
-        loadData();
+        loadHistory();
     </script>
 
-    <!-- Modals -->
+    <!-- Change Password Modal -->
     <div class="modal-overlay" id="change-pw-modal">
         <div class="modal">
             <h3>Change Password</h3>
@@ -295,6 +124,7 @@
         </div>
     </div>
 
+    <!-- Change Username Modal -->
     <div class="modal-overlay" id="change-un-modal">
         <div class="modal">
             <h3>Change Username</h3>
@@ -307,6 +137,7 @@
         </div>
     </div>
 
+    <!-- 2FA Modal -->
     <div class="modal-overlay" id="twofa-modal">
         <div class="modal">
             <h3>&#128272; Two-Factor Authentication</h3>
@@ -328,6 +159,7 @@
         </div>
     </div>
 
+    <!-- Customize Modal -->
     <div class="modal-overlay" id="customize-modal">
         <div class="modal modal-wide">
             <div class="modal-header">

@@ -15,13 +15,18 @@
                 <div class="brand-icon">$</div>
                 <span class="brand-text">Family Finance</span>
             </a>
+            <div class="topnav-balance" id="nav-balance">
+                <span class="balance-label">Balance</span>
+                <span id="nav-balance-amount">$0.00</span>
+            </div>
             <div class="topnav-nav">
                 <a href="/dashboard"><span class="nav-icon">&#9632;</span> <span class="nav-label">Dashboard</span></a>
                 <a href="/transactions"><span class="nav-icon">&#9655;</span> <span class="nav-label">Transactions</span></a>
+                <a href="/history"><span class="nav-icon">&#128221;</span> <span class="nav-label">History</span></a>
                 <a href="/transfer"><span class="nav-icon">&#8644;</span> <span class="nav-label">Transfer</span></a>
                 <a href="/family"><span class="nav-icon">&#128106;</span> <span class="nav-label">Family</span></a>
-                <a href="/interbank" class="active"><span class="nav-icon">&#127974;</span> <span class="nav-label">Inter Bank</span></a>
-                <a href="/doublons"><span class="nav-icon">&#128176;</span> <span class="nav-label">Doublons</span></a>
+                <a href="/interbank" class="active"><span class="nav-icon">&#127974;</span> <span class="nav-label">Bank of Philip</span></a>
+                <a href="/doublons"><span class="nav-icon">&#128176;</span> <span class="nav-label">Doublons Bank</span></a>
             </div>
             <div class="topnav-right">
                 <div class="topnav-user" id="user-menu">
@@ -53,8 +58,15 @@
 
         <main class="main-content">
             <div class="page-header">
-                <h1>Inter Bank System</h1>
-                <p>Transfer money between Family Finance and Bank of Philip</p>
+                <h1>Bank of Philip</h1>
+                <p>Transfer money from Family Finance to Bank of Philip</p>
+            </div>
+
+            <div class="card" style="margin-bottom:16px;">
+                <div style="padding:16px;display:flex;align-items:center;gap:12px;">
+                    <span style="font-size:14px;color:var(--gray-400);">Your Balance:</span>
+                    <span id="bop-balance" style="font-size:20px;font-weight:700;color:var(--green-500);">$0.00</span>
+                </div>
             </div>
 
             <!-- Send to Bank of Philip -->
@@ -82,20 +94,6 @@
                 </div>
             </div>
 
-            <!-- Receive from Bank of Philip -->
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title">Receive from Bank of Philip</span>
-                </div>
-                <div style="padding:16px;">
-                    <p style="margin-bottom:12px;color:var(--gray-400);">Ask someone on Bank of Philip to send you money using your Family Finance username</p>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                        <button class="btn btn-secondary" onclick="copyFamilyFinanceUsername()">Copy My Username</button>
-                        <a href="https://bank-of-philip-130515044033.us-west2.run.app/" target="_blank" class="btn btn-secondary" style="text-decoration:none;">Open Bank of Philip</a>
-                    </div>
-                </div>
-            </div>
-
             <div id="bop-status" style="margin-top:12px;padding:8px;border-radius:var(--radius);display:none;"></div>
         </main>
     </div>
@@ -110,6 +108,18 @@
 
         const BOP_API = 'https://bank-of-philip-130515044033.us-west2.run.app';
         const BOP_API_KEY = 'sov_sk_public_dev_key_2026';
+        let currentBalance = 0;
+
+        async function loadBalance() {
+            const data = await apiGet('/api/user/' + user);
+            if (!data.error) {
+                currentBalance = data.balance || 0;
+                document.getElementById('bop-balance').textContent = formatCurrency(currentBalance);
+                const navEl = document.getElementById('nav-balance-amount');
+                if (navEl) navEl.textContent = formatCurrency(currentBalance);
+            }
+        }
+        loadBalance();
 
         function bopShowStatus(msg, isError) {
             const el = document.getElementById('bop-status');
@@ -126,6 +136,7 @@
             const note = document.getElementById('bop-note').value.trim();
             if (!toUsername) return notifyError('Enter a Bank of Philip username');
             if (!amount || amount <= 0) return notifyError('Enter a valid amount');
+            if (amount > currentBalance) return notifyError('Insufficient balance. Your balance is ' + formatCurrency(currentBalance));
 
             if (!confirm(`Send $${amount.toFixed(2)} from Family Finance to Bank of Philip user "${toUsername}"?`)) return;
 
@@ -154,15 +165,10 @@
                 bopShowStatus(`Sent $${amount.toFixed(2)} to ${toUsername} on Bank of Philip`, false);
                 document.getElementById('bop-amount').value = '';
                 document.getElementById('bop-note').value = '';
+                loadBalance();
             } catch (err) {
                 bopShowStatus(err.message, true);
             }
-        }
-
-        function copyFamilyFinanceUsername() {
-            navigator.clipboard.writeText(user).then(() => {
-                bopShowStatus('Username copied: ' + user, false);
-            });
         }
     </script>
 

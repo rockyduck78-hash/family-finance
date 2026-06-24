@@ -15,13 +15,18 @@
                 <div class="brand-icon">$</div>
                 <span class="brand-text">Family Finance</span>
             </a>
+            <div class="topnav-balance" id="nav-balance">
+                <span class="balance-label">Balance</span>
+                <span id="nav-balance-amount">$0.00</span>
+            </div>
             <div class="topnav-nav">
                 <a href="/dashboard"><span class="nav-icon">&#9632;</span> <span class="nav-label">Dashboard</span></a>
                 <a href="/transactions"><span class="nav-icon">&#9655;</span> <span class="nav-label">Transactions</span></a>
+                <a href="/history"><span class="nav-icon">&#128221;</span> <span class="nav-label">History</span></a>
                 <a href="/transfer"><span class="nav-icon">&#8644;</span> <span class="nav-label">Transfer</span></a>
                 <a href="/family"><span class="nav-icon">&#128106;</span> <span class="nav-label">Family</span></a>
-                <a href="/interbank"><span class="nav-icon">&#127974;</span> <span class="nav-label">Inter Bank</span></a>
-                <a href="/doublons" class="active"><span class="nav-icon">&#128176;</span> <span class="nav-label">Doublons</span></a>
+                <a href="/interbank"><span class="nav-icon">&#127974;</span> <span class="nav-label">Bank of Philip</span></a>
+                <a href="/doublons" class="active"><span class="nav-icon">&#128176;</span> <span class="nav-label">Doublons Bank</span></a>
             </div>
             <div class="topnav-right">
                 <div class="topnav-user" id="user-menu">
@@ -55,6 +60,13 @@
             <div class="page-header">
                 <h1>Doublons Bank</h1>
                 <p>Send and receive money between Family Finance and Doublons Bank</p>
+            </div>
+
+            <div class="card" style="margin-bottom:16px;">
+                <div style="padding:16px;display:flex;align-items:center;gap:12px;">
+                    <span style="font-size:14px;color:var(--gray-400);">Your Balance:</span>
+                    <span id="doublons-balance" style="font-size:20px;font-weight:700;color:var(--green-500);">$0.00</span>
+                </div>
             </div>
 
             <!-- Send to Doublons Bank -->
@@ -118,6 +130,19 @@
         if (!currentUser || !currentToken) { window.location.href = '/'; }
         initUserMenu(currentUser);
 
+        var currentBalance = 0;
+
+        async function loadBalance() {
+            var data = await apiGet('/api/user/' + currentUser);
+            if (!data.error) {
+                currentBalance = data.balance || 0;
+                document.getElementById('doublons-balance').textContent = formatCurrency(currentBalance);
+                var navEl = document.getElementById('nav-balance-amount');
+                if (navEl) navEl.textContent = formatCurrency(currentBalance);
+            }
+        }
+        loadBalance();
+
         function showStatus(msg, isError) {
             var el = document.getElementById('doublons-status');
             el.style.display = 'block';
@@ -144,6 +169,7 @@
             var note = document.getElementById('doublons-note').value.trim();
             if (!toUsername) return notifyError('Enter a Doublons Bank username');
             if (!amount || amount <= 0) return notifyError('Enter a valid amount');
+            if (amount > currentBalance) return notifyError('Insufficient balance. Your balance is ' + formatCurrency(currentBalance));
             if (!confirm('Send $' + amount.toFixed(2) + ' to Doublons Bank user "' + toUsername + '"?')) return;
 
             setBtnLoading('send-btn', true, 'Send to Doublons Bank');
@@ -157,6 +183,7 @@
                 showStatus('Sent $' + amount.toFixed(2) + ' to ' + toUsername + ' on Doublons Bank! The recipient will see it in their Doublons Bank account.', false);
                 document.getElementById('doublons-amount').value = '';
                 document.getElementById('doublons-note').value = '';
+                loadBalance();
             } catch (err) {
                 showStatus(err.message || 'Transfer failed. Please try again.', true);
             } finally {
@@ -181,6 +208,7 @@
                 showStatus('Deposited $' + amount.toFixed(2) + ' from Doublons Bank into your Family Finance account!', false);
                 document.getElementById('doublons-deposit-amount').value = '';
                 document.getElementById('doublons-deposit-note').value = '';
+                loadBalance();
             } catch (err) {
                 showStatus(err.message || 'Deposit failed. Please try again.', true);
             } finally {

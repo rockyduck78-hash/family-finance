@@ -312,13 +312,17 @@ app.get('/api/user/:username', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
+        const txs = user.transactions || [];
+        const income = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+        const expenses = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
         res.json({
-            transactions: user.transactions || [],
+            transactions: txs,
             kids: user.kids || [],
             pendingApprovals: user.pendingApprovals || [],
             scheduledPayments: user.scheduledPayments || [],
             settings: user.settings || {},
-            twoFactorEnabled: user.twoFactorEnabled || false
+            twoFactorEnabled: user.twoFactorEnabled || false,
+            balance: income - expenses
         });
     } catch (err) {
         console.error(err.message);
@@ -1322,6 +1326,7 @@ app.post('/api/external/withdraw', authLimiter, authMiddleware, async (req, res)
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'dashboard.html')));
 app.get('/transactions', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'transactions.html')));
+app.get('/history', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'history.html')));
 app.get('/transfer', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'transfer.html')));
 app.get('/family', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'family.html')));
 app.get('/interbank', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'interbank.html')));

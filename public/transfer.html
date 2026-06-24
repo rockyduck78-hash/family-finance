@@ -15,13 +15,18 @@
                 <div class="brand-icon">$</div>
                 <span class="brand-text">Family Finance</span>
             </a>
+            <div class="topnav-balance" id="nav-balance">
+                <span class="balance-label">Balance</span>
+                <span id="nav-balance-amount">$0.00</span>
+            </div>
             <div class="topnav-nav">
                 <a href="/dashboard"><span class="nav-icon">&#9632;</span> <span class="nav-label">Dashboard</span></a>
                 <a href="/transactions"><span class="nav-icon">&#9655;</span> <span class="nav-label">Transactions</span></a>
+                <a href="/history"><span class="nav-icon">&#128221;</span> <span class="nav-label">History</span></a>
                 <a href="/transfer" class="active"><span class="nav-icon">&#8644;</span> <span class="nav-label">Transfer</span></a>
                 <a href="/family"><span class="nav-icon">&#128106;</span> <span class="nav-label">Family</span></a>
-                <a href="/interbank"><span class="nav-icon">&#127974;</span> <span class="nav-label">Inter Bank</span></a>
-                <a href="/doublons"><span class="nav-icon">&#128176;</span> <span class="nav-label">Doublons</span></a>
+                <a href="/interbank"><span class="nav-icon">&#127974;</span> <span class="nav-label">Bank of Philip</span></a>
+                <a href="/doublons"><span class="nav-icon">&#128176;</span> <span class="nav-label">Doublons Bank</span></a>
             </div>
             <div class="topnav-right">
                 <div class="topnav-user" id="user-menu">
@@ -55,6 +60,13 @@
             <div class="page-header">
                 <h1>Transfer</h1>
                 <p>Send or request money from family members</p>
+            </div>
+
+            <div class="card" style="margin-bottom:16px;">
+                <div style="padding:16px;display:flex;align-items:center;gap:12px;">
+                    <span style="font-size:14px;color:var(--gray-400);">Your Balance:</span>
+                    <span id="transfer-balance" style="font-size:20px;font-weight:700;color:var(--green-500);">$0.00</span>
+                </div>
             </div>
 
             <!-- Family Group Section -->
@@ -242,6 +254,7 @@
         let videoGameHours = 1;
         let gymMachines = 1;
         let dogWalks = 1;
+        let currentBalance = 0;
 
         async function loadData() {
             const [userData, usersData, requestsData, familyData] = await Promise.all([
@@ -252,6 +265,10 @@
             ]);
             transactions = userData.transactions || [];
             allUsers = (usersData || []).filter(u => u !== user);
+            currentBalance = userData.balance || 0;
+            document.getElementById('transfer-balance').textContent = formatCurrency(currentBalance);
+            const navEl = document.getElementById('nav-balance-amount');
+            if (navEl) navEl.textContent = formatCurrency(currentBalance);
             renderUserDropdowns();
             renderTransfers();
             renderRequests(requestsData || []);
@@ -515,6 +532,7 @@
             const note = document.getElementById('transfer-note').value.trim();
             if (!to) return notifyError('Select a recipient');
             if (to === user) return notifyError("Can't send to yourself");
+            if (amount > currentBalance) return notifyError('Insufficient balance. Your balance is ' + formatCurrency(currentBalance));
             const data = await apiPost('/api/transfer', {
                 from: user, to, amount, note
             });
