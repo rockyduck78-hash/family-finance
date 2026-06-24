@@ -137,26 +137,45 @@
         ];
 
         let expenseItems = [];
+        let transactions = [];
         let selectedCategory = null;
         let chart = null;
 
         async function loadItems() {
-            const data = await apiGet('/api/user/' + user + '/expense-items');
-            if (!data.error) {
-                expenseItems = data.items || [];
-            }
+            const [itemsData, userData] = await Promise.all([
+                apiGet('/api/user/' + user + '/expense-items'),
+                apiGet('/api/user/' + user)
+            ]);
+            if (!itemsData.error) expenseItems = itemsData.items || [];
+            if (!userData.error) transactions = userData.transactions || [];
             renderCategories();
             renderChart();
             renderItemsList();
         }
 
+        function getAllExpenses() {
+            const fromTransactions = transactions
+                .filter(t => t.type === 'expense')
+                .map(t => ({
+                    id: t.id,
+                    category: t.category || 'other',
+                    name: t.description,
+                    quantity: 1,
+                    price: t.amount,
+                    date: t.date,
+                    source: 'transaction'
+                }));
+            const fromItems = expenseItems.map(i => ({ ...i, source: 'expense-item' }));
+            return [...fromTransactions, ...fromItems];
+        }
+
         function renderCategories() {
+            const all = getAllExpenses();
             const grid = document.getElementById('category-grid');
             grid.innerHTML = categories.map(cat => {
-                const total = expenseItems
-                    .filter(i => i.category === cat.id)
-                    .reduce((s, i) => s + (i.quantity * i.price), 0);
-                const count = expenseItems.filter(i => i.category === cat.id).length;
+                const catItems = all.filter(i => i.category === cat.id);
+                const total = catItems.reduce((s, i) => s + (i.quantity * i.price), 0);
+                const count = catItems.length;
                 return `
                     <div class="card" style="cursor:pointer;transition:transform 0.2s,border-color 0.2s;border:2px solid ${selectedCategory === cat.id ? cat.color : 'transparent'};"
                          onmouseenter="this.style.transform='scale(1.04)'"
@@ -271,9 +290,10 @@
         function renderChart() {
             const ctx = document.getElementById('expense-chart');
             if (!ctx) return;
+            const all = getAllExpenses();
             const totals = {};
             categories.forEach(cat => {
-                totals[cat.id] = expenseItems
+                totals[cat.id] = all
                     .filter(i => i.category === cat.id)
                     .reduce((s, i) => s + (i.quantity * i.price), 0);
             });
@@ -317,26 +337,33 @@
 
         function renderItemsList() {
             const list = document.getElementById('items-list');
-            if (!expenseItems.length) {
-                list.innerHTML = '<div class="empty-state"><span class="icon">&#128722;</span><p>No items added yet. Click a category above to start.</p></div>';
+            const all = getAllExpenses();
+            if (!all.length) {
+                list.innerHTML = '<div class="empty-state"><span class="icon">&#128722;</span><p>No expenses yet. Add a transaction or click a category above to start.</p></div>';
                 return;
             }
-            const sorted = [...expenseItems].sort((a, b) => new Date(b.date) - new Date(a.date));
+            const sorted = [...all].sort((a, b) => new Date(b.date) - new Date(a.date));
             list.innerHTML = sorted.map(item => {
                 const cat = categories.find(c => c.id === item.category);
                 const total = item.quantity * item.price;
+                const badge = item.source === 'transaction'
+                    ? '<span style="font-size:10px;background:var(--blue-100);color:var(--blue-600);padding:2px 6px;border-radius:4px;margin-left:6px;">Transaction</span>'
+                    : '<span style="font-size:10px;background:var(--green-100);color:var(--green-600);padding:2px 6px;border-radius:4px;margin-left:6px;">Manual</span>';
+                const deleteBtn = item.source === 'expense-item'
+                    ? `<button class="btn-ghost" onclick="removeItem(${item.id})">&#10005;</button>`
+                    : '';
                 return `
                     <div class="transaction-item">
                         <div class="transaction-left">
                             <div class="transaction-icon" style="background:${cat ? cat.color + '22' : '#eee'};color:${cat ? cat.color : '#666'};">${cat ? cat.icon : '&#128196;'}</div>
                             <div class="transaction-info">
-                                <h4>${escapeHtml(item.name)}</h4>
+                                <h4>${escapeHtml(item.name)}${badge}</h4>
                                 <span>${cat ? cat.name : item.category} &bull; ${item.quantity} x $${item.price.toFixed(2)} &bull; ${new Date(item.date).toLocaleDateString()}</span>
                             </div>
                         </div>
                         <div class="transaction-right">
                             <span class="transaction-amount expense">-$${total.toFixed(2)}</span>
-                            <button class="btn-ghost" onclick="removeItem(${item.id})">&#10005;</button>
+                            ${deleteBtn}
                         </div>
                     </div>
                 `;
@@ -348,6 +375,11 @@
         });
 
         loadItems();
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) loadItems();
+        });
+        setInterval(loadItems, 10000);
     </script>
 
     <!-- Change Password Modal -->
