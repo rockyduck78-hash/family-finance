@@ -201,15 +201,35 @@
             if (!qty || qty < 1) return notifyError('Enter a valid quantity');
             if (!price || price <= 0) return notifyError('Enter a valid price');
 
-            const data = await apiPost('/api/user/' + user + '/expense-items', {
-                category: selectedCategory, name, quantity: qty, price
-            });
-            if (data.error) return notifyError(data.error);
-            expenseItems = data.items;
+            const tempItem = {
+                id: Date.now(),
+                category: selectedCategory,
+                name,
+                quantity: qty,
+                price,
+                date: new Date().toISOString()
+            };
+            expenseItems.push(tempItem);
+            renderCategories();
+            renderChart();
+            renderItemsList();
+
             document.getElementById('item-name').value = '';
             document.getElementById('item-qty').value = 1;
             document.getElementById('item-price').value = '';
             document.getElementById('item-name').focus();
+
+            const data = await apiPost('/api/user/' + user + '/expense-items', {
+                category: selectedCategory, name, quantity: qty, price
+            });
+            if (data.error) {
+                expenseItems = expenseItems.filter(i => i.id !== tempItem.id);
+                renderCategories();
+                renderChart();
+                renderItemsList();
+                return notifyError(data.error);
+            }
+            expenseItems = data.items;
             renderCategories();
             renderChart();
             renderItemsList();
@@ -217,8 +237,20 @@
         }
 
         async function removeItem(itemId) {
+            const removed = expenseItems.find(i => i.id === itemId);
+            expenseItems = expenseItems.filter(i => i.id !== itemId);
+            renderCategories();
+            renderChart();
+            renderItemsList();
+
             const data = await apiDelete('/api/user/' + user + '/expense-items/' + itemId);
-            if (data.error) return notifyError(data.error);
+            if (data.error) {
+                if (removed) expenseItems.push(removed);
+                renderCategories();
+                renderChart();
+                renderItemsList();
+                return notifyError(data.error);
+            }
             expenseItems = data.items;
             renderCategories();
             renderChart();
@@ -245,13 +277,17 @@
                     .filter(i => i.category === cat.id)
                     .reduce((s, i) => s + (i.quantity * i.price), 0);
             });
-            const labels = categories.map(c => c.name);
             const data = categories.map(c => totals[c.id]);
-            const colors = categories.map(c => c.color);
             const total = data.reduce((a, b) => a + b, 0);
             document.getElementById('total-spent').textContent = 'Total: $' + total.toFixed(2);
 
-            if (chart) chart.destroy();
+            if (chart) {
+                chart.data.datasets[0].data = data;
+                chart.update('none');
+                return;
+            }
+            const labels = categories.map(c => c.name);
+            const colors = categories.map(c => c.color);
             chart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
@@ -266,6 +302,7 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: { duration: 300 },
                     plugins: {
                         legend: { position: 'right', labels: { padding: 16, font: { size: 13 } } },
                         tooltip: {
