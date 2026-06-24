@@ -399,7 +399,13 @@ app.put('/api/user/:username/transactions', authMiddleware, ownerOnly, async (re
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
-        user.transactions = req.body.transactions;
+        const newTxs = req.body.transactions || [];
+        const income = newTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+        const expenses = newTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+        if (expenses > income) {
+            return res.status(400).json({ error: 'Insufficient balance. Cannot have negative balance.' });
+        }
+        user.transactions = newTxs;
         await user.save();
         res.json({ success: true });
     } catch (err) {

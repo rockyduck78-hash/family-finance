@@ -133,6 +133,7 @@
 
         let transactions = [];
         let pendingApprovals = [];
+        let currentBalance = 0;
 
         showTransactions();
 
@@ -150,6 +151,7 @@
                 }
                 transactions = data.transactions || [];
                 pendingApprovals = data.pendingApprovals || [];
+                currentBalance = data.balance || 0;
                 renderApprovals();
             } catch (err) {
                 console.error('Failed to load data:', err);
@@ -203,6 +205,13 @@
                 category: document.getElementById('category').value,
                 date: new Date().toISOString()
             };
+
+            if (newTx.type === 'expense' && newTx.amount > currentBalance) {
+                notifyError('Insufficient balance. Your balance is ' + formatCurrency(currentBalance));
+                btn.disabled = false;
+                btn.textContent = 'Add Transaction';
+                return;
+            }
 
             const btn = e.target.querySelector('button[type="submit"]');
             btn.disabled = true;
