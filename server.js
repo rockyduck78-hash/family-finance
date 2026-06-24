@@ -143,6 +143,14 @@ const userSchema = new mongoose.Schema({
         description: { type: String },
         date: { type: String }
     }], default: [] },
+    expenseItems: { type: [{
+        id: { type: Number },
+        category: { type: String },
+        name: { type: String },
+        quantity: { type: Number },
+        price: { type: Number },
+        date: { type: String }
+    }], default: [] },
     familyGroupId: { type: mongoose.Schema.Types.ObjectId, default: null },
     settings: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: true });
@@ -411,6 +419,65 @@ app.put('/api/user/:username/transactions', authMiddleware, ownerOnly, async (re
     } catch (err) {
         console.error('Save transactions error:', err.message);
         res.status(500).json({ error: 'Failed to save: ' + err.message });
+    }
+});
+
+// Expense Items
+app.get('/api/user/:username/expense-items', authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        res.json({ items: user.expenseItems || [] });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/user/:username/expense-items', authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        const { category, name, quantity, price } = req.body;
+        if (!category || !name || !quantity || !price) {
+            return res.status(400).json({ error: 'Category, name, quantity, and price are required' });
+        }
+        user.expenseItems.push({
+            id: Date.now(),
+            category,
+            name: sanitize(name),
+            quantity: Number(quantity),
+            price: Number(price),
+            date: new Date().toISOString()
+        });
+        await user.save();
+        res.json({ success: true, items: user.expenseItems });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.delete('/api/user/:username/expense-items/:itemId', authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        const itemId = Number(req.params.itemId);
+        user.expenseItems = user.expenseItems.filter(i => i.id !== itemId);
+        await user.save();
+        res.json({ success: true, items: user.expenseItems });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.delete('/api/user/:username/expense-items', authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        user.expenseItems = [];
+        await user.save();
+        res.json({ success: true, items: [] });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
@@ -1754,6 +1821,10 @@ app.get('/transactions', (req, res) => {
 app.get('/history', (req, res) => {
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(__dirname, 'public', 'history.html'));
+});
+app.get('/expenses', (req, res) => {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(path.join(__dirname, 'public', 'expenses.html'));
 });
 app.get('/transfer', (req, res) => {
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');

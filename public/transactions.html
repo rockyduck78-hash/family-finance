@@ -6,7 +6,6 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <title>Transactions - Family Finance</title>
     <link rel="stylesheet" href="/styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="/particles.js" defer></script>
 </head>
 <body>
@@ -117,22 +116,9 @@
                     </form>
                 </div>
 
-                <div style="margin-top:16px;text-align:center;">
+                <div style="margin-top:16px;text-align:center;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
                     <a href="/history" class="btn btn-secondary">View Full Transaction History</a>
-                </div>
-
-                <!-- Expense Breakdown Graph -->
-                <div class="card" style="margin-top:24px;">
-                    <div class="card-header">
-                        <span class="card-title">Expense Breakdown</span>
-                    </div>
-                    <div style="padding:16px;">
-                        <p style="color:var(--gray-400);margin-bottom:16px;">Average prices for common items by category. Hover over bars for details.</p>
-                        <div style="position:relative;height:400px;">
-                            <canvas id="expense-breakdown-chart"></canvas>
-                        </div>
-                        <div id="expense-items-grid" style="margin-top:24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;"></div>
-                    </div>
+                    <a href="/expenses" class="btn btn-primary">Expense Tracker & Graph</a>
                 </div>
             </div>
         </main>
@@ -248,119 +234,6 @@
                 btn.textContent = 'Add Transaction';
             }
         });
-
-        // Expense Breakdown Chart
-        const expenseData = {
-            'Food & Groceries': {
-                items: ['Milk (gal)', 'Bread (loaf)', 'Eggs (dozen)', 'Chicken (lb)', 'Rice (lb)', 'Apples (lb)', 'Bananas (lb)', 'Cheese (lb)', 'Ground Beef (lb)', 'Salmon (lb)'],
-                prices: [3.50, 2.50, 3.00, 5.00, 1.50, 2.00, 1.00, 6.00, 5.50, 9.00],
-                color: '#22c55e'
-            },
-            'Utilities': {
-                items: ['Electricity', 'Water', 'Gas', 'Internet', 'Phone', 'Trash'],
-                prices: [120, 45, 60, 70, 50, 25],
-                color: '#3b82f6'
-            },
-            'Transportation': {
-                items: ['Gas (gal)', 'Oil Change', 'Car Wash', 'Parking', 'Bus Pass', 'Uber Ride'],
-                prices: [3.50, 40, 15, 10, 60, 12],
-                color: '#f59e0b'
-            },
-            'Entertainment': {
-                items: ['Movie Ticket', 'Streaming Sub', 'Concert Ticket', 'Video Game', 'Book', 'Sport Event'],
-                prices: [12, 15, 60, 60, 15, 40],
-                color: '#ec4899'
-            },
-            'Kids': {
-                items: ['School Lunch', 'Toy', 'Clothes', 'Activity Fee', 'Lunch Money', 'Birthday Gift'],
-                prices: [3.50, 15, 20, 25, 10, 20],
-                color: '#8b5cf6'
-            },
-            'Savings': {
-                items: ['Emergency Fund', 'Vacation Fund', 'College Fund', 'Retirement', 'Investment'],
-                prices: [100, 50, 75, 150, 100],
-                color: '#06b6d4'
-            }
-        };
-
-        let expenseChart = null;
-
-        function renderExpenseChart() {
-            const ctx = document.getElementById('expense-breakdown-chart');
-            if (!ctx) return;
-
-            const categories = Object.keys(expenseData);
-            const avgPrices = categories.map(cat => {
-                const prices = expenseData[cat].prices;
-                return prices.reduce((a, b) => a + b, 0) / prices.length;
-            });
-            const colors = categories.map(cat => expenseData[cat].color);
-
-            if (expenseChart) expenseChart.destroy();
-
-            expenseChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: categories,
-                    datasets: [{
-                        label: 'Average Item Price ($)',
-                        data: avgPrices,
-                        backgroundColor: colors.map(c => c + '99'),
-                        borderColor: colors,
-                        borderWidth: 2,
-                        borderRadius: 8
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                afterLabel: function(context) {
-                                    const cat = categories[context.dataIndex];
-                                    const data = expenseData[cat];
-                                    return data.items.map((item, i) => item + ': $' + data.prices[i].toFixed(2)).join('\n');
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { callback: v => '$' + v.toFixed(0) },
-                            grid: { color: 'rgba(0,0,0,0.05)' }
-                        },
-                        x: {
-                            grid: { display: false }
-                        }
-                    }
-                }
-            });
-        }
-
-        renderExpenseChart();
-
-        // Render items grid
-        function renderItemsGrid() {
-            const grid = document.getElementById('expense-items-grid');
-            if (!grid) return;
-            grid.innerHTML = Object.entries(expenseData).map(([cat, data]) => `
-                <div style="background:var(--gray-50);border-radius:var(--radius);padding:16px;border-left:4px solid ${data.color};">
-                    <h4 style="margin-bottom:8px;color:${data.color};font-size:14px;">${cat}</h4>
-                    <div style="display:flex;flex-direction:column;gap:4px;">
-                        ${data.items.map((item, i) => `
-                            <div style="display:flex;justify-content:space-between;font-size:13px;">
-                                <span style="color:var(--gray-600);">${item}</span>
-                                <span style="font-weight:600;color:var(--gray-800);">$${data.prices[i].toFixed(2)}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            `).join('');
-        }
-        renderItemsGrid();
 
     </script>
 

@@ -5,6 +5,7 @@
     { "source": "/dashboard", "destination": "/api/index.js" },
     { "source": "/transactions", "destination": "/api/index.js" },
     { "source": "/history", "destination": "/api/index.js" },
+    { "source": "/expenses", "destination": "/api/index.js" },
     { "source": "/transfer", "destination": "/api/index.js" },
     { "source": "/family", "destination": "/api/index.js" },
     { "source": "/interbank", "destination": "/api/index.js" },
