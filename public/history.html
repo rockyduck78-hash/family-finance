@@ -65,6 +65,7 @@
             <div class="card">
                 <div class="card-header">
                     <span class="card-title">All Transactions</span>
+                    <button class="btn btn-secondary" onclick="exportCSV()">&#128229; Download CSV</button>
                 </div>
                 <div class="transaction-list" id="history-list">
                     <div class="empty-state"><span class="icon">&#128221;</span><p>No transactions yet</p></div>
@@ -81,10 +82,13 @@
         if (!user) window.location.href = '/';
         initUserMenu(user);
 
+        let allTransactions = [];
+
         async function loadHistory() {
             const data = await apiGet('/api/user/' + user);
             if (data.error) return;
             const txs = data.transactions || [];
+            allTransactions = txs;
             const list = document.getElementById('history-list');
             if (txs.length === 0) {
                 list.innerHTML = '<div class="empty-state"><span class="icon">&#128221;</span><p>No transactions yet</p></div>';
@@ -105,6 +109,29 @@
                     </div>
                 </div>
             `).join('');
+        }
+
+        function exportCSV() {
+            if (!allTransactions.length) return notifyError('No transactions to export');
+            const headers = ['Date', 'Type', 'Category', 'Description', 'Amount'];
+            const rows = allTransactions
+                .sort((a, b) => new Date(a.date) - new Date(b.date))
+                .map(t => [
+                    new Date(t.date).toLocaleDateString(),
+                    t.type,
+                    t.category,
+                    '"' + (t.description || '').replace(/"/g, '""') + '"',
+                    t.type === 'income' ? t.amount : -t.amount
+                ]);
+            const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'family-finance-history-' + new Date().toISOString().slice(0, 10) + '.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+            notifySuccess('History downloaded as CSV');
         }
 
         loadHistory();
