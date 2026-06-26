@@ -170,7 +170,7 @@
             if (!toUsername) return notifyError('Enter a Doublons Bank username');
             if (!amount || amount <= 0) return notifyError('Enter a valid amount');
             if (amount > currentBalance) return notifyError('Insufficient balance. Your balance is ' + formatCurrency(currentBalance));
-            if (!confirm('Send $' + amount.toFixed(2) + ' to Doublons Bank user "' + toUsername + '"?')) return;
+            if (!await showConfirm('Send $' + amount.toFixed(2) + ' to Doublons Bank user "' + toUsername + '"?', { confirmText: 'Send', danger: false })) return;
 
             setBtnLoading('send-btn', true, 'Send to Doublons Bank');
             try {
@@ -195,7 +195,7 @@
             var amount = parseFloat(document.getElementById('doublons-deposit-amount').value);
             var note = document.getElementById('doublons-deposit-note').value.trim();
             if (!amount || amount <= 0) return notifyError('Enter a valid amount');
-            if (!confirm('Deposit $' + amount.toFixed(2) + ' from Doublons Bank into your Family Finance account?')) return;
+            if (!await showConfirm('Deposit $' + amount.toFixed(2) + ' from Doublons Bank into your Family Finance account?', { confirmText: 'Deposit' })) return;
 
             setBtnLoading('deposit-btn', true, 'Deposit to Family Finance');
             try {

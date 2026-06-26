@@ -350,7 +350,7 @@
         }
 
         async function leaveFamily() {
-            if (!confirm('Leave your family group?')) return;
+            if (!await showConfirm('Leave your family group?', { confirmText: 'Leave', danger: true })) return;
             const data = await apiPost('/api/family/leave', {});
             if (data.error) return notifyError(data.error);
             loadData();

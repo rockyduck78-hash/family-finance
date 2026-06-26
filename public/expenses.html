@@ -277,7 +277,7 @@
         }
 
         async function clearAllItems() {
-            if (!confirm('Clear all expense items?')) return;
+            if (!await showConfirm('Clear all expense items?', { confirmText: 'Clear All', danger: true })) return;
             const data = await apiDelete('/api/user/' + user + '/expense-items');
             if (data.error) return notifyError(data.error);
             expenseItems = [];

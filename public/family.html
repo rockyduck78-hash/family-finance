@@ -266,7 +266,7 @@
         }
 
         async function removeMember(memberName) {
-            if (!confirm('Remove ' + memberName + ' from the group?')) return;
+            if (!await showConfirm('Remove ' + memberName + ' from the group?', { confirmText: 'Remove', danger: true })) return;
             const data = await apiPost('/api/family/remove-member', { username: memberName });
             if (data.error) return notifyError(data.error);
             document.getElementById('member-detail-card').style.display = 'none';
