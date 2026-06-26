@@ -119,6 +119,7 @@
             if (!document.hidden) loadData();
         });
         window.addEventListener('pageshow', loadData);
+        setInterval(() => { if (!document.hidden) loadData(); }, 10000);
 
         function formatCurrency(amount) {
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -150,89 +151,114 @@
         }
 
         function rebuildCharts() {
-            if (incomeExpenseChart) { incomeExpenseChart.destroy(); incomeExpenseChart = null; }
-            if (categoryChart) { categoryChart.destroy(); categoryChart = null; }
-
-            const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-            const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+            const chartType1 = userSettings.incomeExpensesChart || 'doughnut';
+            const chartType2 = userSettings.categoryChart || 'bar';
             const colors = getChartColors();
             const textColor = getTextColor();
             const gridColor = getGridColor();
 
-            const chartType1 = userSettings.incomeExpensesChart || 'doughnut';
+            const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+            const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+
+            // --- Income vs Expenses chart ---
             const isRadial1 = ['doughnut', 'pie'].includes(chartType1);
-
-            const ieConfig = {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom', labels: { color: textColor, padding: 16, font: { size: 12 } } }
-                }
-            };
-            if (chartType1 === 'doughnut') ieConfig.cutout = '72%';
-
-            incomeExpenseChart = new Chart(document.getElementById('incomeExpenseChart'), {
-                type: chartType1 === 'horizontalBar' ? 'bar' : chartType1,
-                data: {
-                    labels: ['Income', 'Expenses'],
-                    datasets: [{
-                        data: [income, expenses],
-                        backgroundColor: isRadial1 ? [colors[0], colors[2]] : [colors[0], colors[2]],
-                        borderRadius: chartType1 === 'bar' ? 6 : 0,
-                        borderWidth: isRadial1 ? 0 : 2,
-                        borderColor: isRadial1 ? 'transparent' : [colors[0], colors[2]]
-                    }]
-                },
-                options: ieConfig
-            });
-            if (chartType1 === 'horizontalBar') {
-                incomeExpenseChart.options.indexAxis = 'y';
-                incomeExpenseChart.update();
+            const ie1CanvasType = chartType1 === 'horizontalBar' ? 'bar' : chartType1;
+            // Destroy and recreate only when chart type has changed
+            if (incomeExpenseChart && incomeExpenseChart.config.type !== ie1CanvasType) {
+                incomeExpenseChart.destroy();
+                incomeExpenseChart = null;
             }
 
+            if (incomeExpenseChart) {
+                // In-place update — no flicker
+                incomeExpenseChart.data.datasets[0].data = [income, expenses];
+                incomeExpenseChart.update();
+            } else {
+                const ieConfig = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: textColor, padding: 16, font: { size: 12 } } }
+                    }
+                };
+                if (chartType1 === 'doughnut') ieConfig.cutout = '72%';
+                if (chartType1 === 'horizontalBar') ieConfig.indexAxis = 'y';
+
+                incomeExpenseChart = new Chart(document.getElementById('incomeExpenseChart'), {
+                    type: ie1CanvasType,
+                    data: {
+                        labels: ['Income', 'Expenses'],
+                        datasets: [{
+                            data: [income, expenses],
+                            backgroundColor: [colors[0], colors[2]],
+                            borderRadius: chartType1 === 'bar' ? 6 : 0,
+                            borderWidth: isRadial1 ? 0 : 2,
+                            borderColor: isRadial1 ? 'transparent' : [colors[0], colors[2]]
+                        }]
+                    },
+                    options: ieConfig
+                });
+            }
+
+            // --- Spending by Category chart ---
             const cats = {};
             transactions.filter(t => t.type === 'expense').forEach(t => {
                 cats[t.category] = (cats[t.category] || 0) + t.amount;
             });
-            const labels = Object.keys(cats).map(c => c.charAt(0).toUpperCase() + c.slice(1));
-            const data = Object.values(cats);
+            const catLabels = Object.keys(cats).map(c => c.charAt(0).toUpperCase() + c.slice(1));
+            const catData = Object.values(cats);
+            const isRadial2 = ['doughnut', 'pie'].includes(chartType2);
+            const cat2CanvasType = chartType2 === 'horizontalBar' ? 'bar' : chartType2;
 
-            if (labels.length > 0) {
-                const chartType2 = userSettings.categoryChart || 'bar';
-                const isRadial2 = ['doughnut', 'pie'].includes(chartType2);
+            // Destroy and recreate only when chart type has changed
+            if (categoryChart && categoryChart.config.type !== cat2CanvasType) {
+                categoryChart.destroy();
+                categoryChart = null;
+            }
 
-                const catConfig = {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: isRadial2, position: 'bottom', labels: { color: textColor, padding: 12, font: { size: 11 } } } }
-                };
-
-                if (chartType2 === 'bar' || chartType2 === 'horizontalBar') {
-                    catConfig.scales = {
-                        y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, font: { size: 11 } } },
-                        x: { grid: { display: false }, ticks: { color: textColor, font: { size: 11 } } }
-                    };
-                }
-                if (chartType2 === 'doughnut') catConfig.cutout = '60%';
-
-                categoryChart = new Chart(document.getElementById('categoryChart'), {
-                    type: chartType2 === 'horizontalBar' ? 'bar' : chartType2,
-                    data: {
-                        labels,
-                        datasets: [{
-                            data,
-                            backgroundColor: colors.slice(0, labels.length),
-                            borderRadius: (chartType2 === 'bar' || chartType2 === 'horizontalBar') ? 6 : 0,
-                            borderWidth: isRadial2 ? 0 : 2,
-                            borderColor: isRadial2 ? 'transparent' : colors.slice(0, labels.length)
-                        }]
-                    },
-                    options: catConfig
-                });
-                if (chartType2 === 'horizontalBar') {
-                    categoryChart.options.indexAxis = 'y';
+            if (catLabels.length > 0) {
+                if (categoryChart) {
+                    // In-place update — labels may change as new categories are added
+                    categoryChart.data.labels = catLabels;
+                    categoryChart.data.datasets[0].data = catData;
+                    categoryChart.data.datasets[0].backgroundColor = colors.slice(0, catLabels.length);
+                    if (!isRadial2) categoryChart.data.datasets[0].borderColor = colors.slice(0, catLabels.length);
                     categoryChart.update();
+                } else {
+                    const catConfig = {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: isRadial2, position: 'bottom', labels: { color: textColor, padding: 12, font: { size: 11 } } } }
+                    };
+                    if (chartType2 === 'bar' || chartType2 === 'horizontalBar') {
+                        catConfig.scales = {
+                            y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, font: { size: 11 } } },
+                            x: { grid: { display: false }, ticks: { color: textColor, font: { size: 11 } } }
+                        };
+                    }
+                    if (chartType2 === 'doughnut') catConfig.cutout = '60%';
+                    if (chartType2 === 'horizontalBar') catConfig.indexAxis = 'y';
+
+                    categoryChart = new Chart(document.getElementById('categoryChart'), {
+                        type: cat2CanvasType,
+                        data: {
+                            labels: catLabels,
+                            datasets: [{
+                                data: catData,
+                                backgroundColor: colors.slice(0, catLabels.length),
+                                borderRadius: (chartType2 === 'bar' || chartType2 === 'horizontalBar') ? 6 : 0,
+                                borderWidth: isRadial2 ? 0 : 2,
+                                borderColor: isRadial2 ? 'transparent' : colors.slice(0, catLabels.length)
+                            }]
+                        },
+                        options: catConfig
+                    });
                 }
+            } else if (categoryChart) {
+                // No expense data — clear the chart
+                categoryChart.data.labels = [];
+                categoryChart.data.datasets[0].data = [];
+                categoryChart.update();
             }
         }
 
