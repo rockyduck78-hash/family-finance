@@ -303,7 +303,7 @@
 
             if (chart) {
                 chart.data.datasets[0].data = data;
-                chart.update('none');
+                chart.update();
                 return;
             }
             const labels = categories.map(c => c.name);
