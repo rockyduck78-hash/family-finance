@@ -69,61 +69,19 @@
                 </div>
             </div>
 
-            <!-- Family Group Section -->
-            <div class="card" id="family-card">
-                <div class="card-header">
-                    <span class="card-title">Family Group</span>
-                </div>
-                <div id="family-no-group" style="padding:16px;">
-                    <p style="margin-bottom:12px;color:var(--gray-400);">Create or join a family group to manage transfers with owner approval.</p>
-                    <div style="display:flex;gap:16px;flex-wrap:wrap;">
-                        <div style="flex:1;min-width:200px;">
-                            <h4 style="margin-bottom:8px;">Create Group</h4>
-                            <div class="form-group">
-                                <input type="text" id="family-create-name" placeholder="Family name">
-                            </div>
-                            <div class="form-group">
-                                <input type="text" id="family-create-code" placeholder="Custom code (optional, min 4 chars)" maxlength="20" style="text-transform:uppercase;">
-                            </div>
-                            <button class="btn btn-primary" onclick="createFamily()">Create</button>
-                        </div>
-                        <div style="flex:1;min-width:200px;">
-                            <h4 style="margin-bottom:8px;">Join Group</h4>
-                            <div class="form-group">
-                                <input type="text" id="family-join-code" placeholder="6-digit code" maxlength="6" style="text-transform:uppercase;">
-                            </div>
-                            <button class="btn btn-primary" onclick="joinFamily()">Join</button>
-                        </div>
-                    </div>
-                </div>
-                <div id="family-has-group" style="padding:16px;display:none;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-                        <div>
-                            <strong id="family-name-display"></strong>
-                            <span id="family-member-count" style="margin-left:8px;color:var(--gray-400);font-size:13px;"></span>
-                        </div>
-                        <button class="btn btn-sm btn-secondary" onclick="leaveFamily()">Leave Group</button>
-                    </div>
-                    <div id="family-code-display" style="margin-bottom:12px;padding:10px;background:var(--gray-800);border-radius:var(--radius);font-family:monospace;font-size:18px;text-align:center;letter-spacing:4px;"></div>
-                    <p style="font-size:12px;color:var(--gray-400);margin-bottom:0;">Share this code with family members to join</p>
-                </div>
+            <!-- Tabs -->
+            <div class="page-tabs" role="tablist">
+                <button class="page-tab active" role="tab" aria-selected="true" onclick="switchTab('transfers', this)">&#8644; Transfers</button>
+                <button class="page-tab" role="tab" aria-selected="false" onclick="switchTab('family', this)">&#128106; Family Group</button>
             </div>
 
-            <!-- Family Pending Approvals (owner only) -->
-            <div class="card" id="family-pending-card" style="display:none;">
-                <div class="card-header">
-                    <span class="card-title">Pending Approvals</span>
-                </div>
-                <div id="family-pending-list" style="padding:16px;">
-                    <div class="empty-state"><span class="icon">&#128276;</span><p>No pending transactions</p></div>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title">Send Money</span>
-                </div>
-                <form id="transfer-form">
+            <!-- Tab: Transfers -->
+            <div id="tab-transfers" class="tab-panel active">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Send Money</span>
+                    </div>
+                    <form id="transfer-form">
                     <div class="form-group">
                         <label>Recipient</label>
                         <select id="transfer-to" required>
@@ -236,6 +194,62 @@
                     <div class="empty-state"><span class="icon">&#128276;</span><p>No pending requests</p></div>
                 </div>
             </div>
+            </div><!-- end tab-transfers -->
+
+            <!-- Tab: Family Group -->
+            <div id="tab-family" class="tab-panel">
+
+                <!-- Family Group Section -->
+                <div class="card" id="family-card">
+                    <div class="card-header">
+                        <span class="card-title">Family Group</span>
+                    </div>
+                    <div id="family-no-group" style="padding:16px;">
+                        <p style="margin-bottom:16px;color:var(--gray-400);">Create or join a family group to manage transfers with owner approval.</p>
+                        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                            <div style="flex:1;min-width:200px;">
+                                <h4 style="margin-bottom:8px;">Create Group</h4>
+                                <div class="form-group">
+                                    <input type="text" id="family-create-name" placeholder="Family name">
+                                </div>
+                                <div class="form-group">
+                                    <input type="text" id="family-create-code" placeholder="Custom code (optional, min 4 chars)" maxlength="20" style="text-transform:uppercase;">
+                                </div>
+                                <button class="btn btn-primary" onclick="createFamily()">Create Group</button>
+                            </div>
+                            <div style="flex:1;min-width:200px;">
+                                <h4 style="margin-bottom:8px;">Join Group</h4>
+                                <div class="form-group">
+                                    <input type="text" id="family-join-code" placeholder="Enter join code" maxlength="20" style="text-transform:uppercase;">
+                                </div>
+                                <button class="btn btn-primary" onclick="joinFamily()">Join Group</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="family-has-group" style="padding:16px;display:none;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+                            <div>
+                                <strong id="family-name-display"></strong>
+                                <span id="family-member-count" style="margin-left:8px;color:var(--gray-400);font-size:13px;"></span>
+                            </div>
+                            <button class="btn btn-sm btn-secondary" onclick="leaveFamily()">Leave Group</button>
+                        </div>
+                        <div id="family-code-display" style="margin-bottom:12px;padding:14px;background:var(--gray-100);border-radius:var(--radius);font-family:monospace;font-size:22px;text-align:center;letter-spacing:6px;font-weight:700;"></div>
+                        <p style="font-size:13px;color:var(--gray-400);margin-bottom:0;">Share this code with family members to join</p>
+                    </div>
+                </div>
+
+                <!-- Family Pending Approvals (owner only) -->
+                <div class="card" id="family-pending-card" style="display:none;">
+                    <div class="card-header">
+                        <span class="card-title">Pending Approvals</span>
+                    </div>
+                    <div id="family-pending-list" style="padding:16px;">
+                        <div class="empty-state"><span class="icon">&#128276;</span><p>No pending transactions</p></div>
+                    </div>
+                </div>
+
+            </div><!-- end tab-family -->
 
             <!-- Inter Bank System moved to /interbank page -->
         </main>
@@ -255,6 +269,14 @@
         let gymMachines = 1;
         let dogWalks = 1;
         let currentBalance = 0;
+
+        function switchTab(name, btn) {
+            document.querySelectorAll('.page-tab').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected','false'); });
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            btn.setAttribute('aria-selected','true');
+            document.getElementById('tab-' + name).classList.add('active');
+        }
 
         async function loadData() {
             const [userData, usersData, requestsData, familyData] = await Promise.all([

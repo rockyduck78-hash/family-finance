@@ -2321,3 +2321,138 @@ body.theme-blue .modal-wide .modal-header {
 .theme-blue .notification-message {
     color: var(--gray-100);
 }
+
+/* ===== Page Tabs ===== */
+.page-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--gray-100);
+    border-radius: var(--radius-lg);
+    padding: 4px;
+    margin-bottom: 20px;
+}
+
+.page-tab {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    background: transparent;
+    border-radius: calc(var(--radius-lg) - 2px);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-500);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.page-tab:hover {
+    background: var(--white);
+    color: var(--gray-700);
+}
+
+.page-tab.active {
+    background: var(--white);
+    color: var(--blue-600);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+}
+
+.tab-panel {
+    display: none;
+}
+
+.tab-panel.active {
+    display: block;
+}
+
+body.theme-dark .page-tabs {
+    background: #1e2535;
+}
+body.theme-dark .page-tab.active,
+body.theme-dark .page-tab:hover {
+    background: #2d3748;
+    color: #93c5fd;
+}
+body.theme-blue .page-tabs {
+    background: #1e293b;
+}
+body.theme-blue .page-tab.active,
+body.theme-blue .page-tab:hover {
+    background: #2d3f55;
+    color: #93c5fd;
+}
+
+/* ===== Mobile improvements ===== */
+@media (max-width: 600px) {
+    .page-tabs {
+        gap: 2px;
+        padding: 3px;
+    }
+
+    .page-tab {
+        padding: 9px 10px;
+        font-size: 13px;
+    }
+
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .btn + .btn,
+    .btn + a.btn,
+    a.btn + .btn {
+        margin-top: 8px;
+    }
+
+    /* Make counter rows bigger for touch */
+    .counter-row {
+        gap: 16px;
+    }
+
+    .btn-counter {
+        width: 44px;
+        height: 44px;
+        font-size: 20px;
+    }
+
+    .counter-value {
+        font-size: 22px;
+        min-width: 40px;
+    }
+
+    /* Approval/request action buttons stack on mobile */
+    .transaction-item .transaction-right,
+    .transaction-item > div:last-child {
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 6px;
+    }
+
+    /* Cards full bleed on small screens */
+    .main-content {
+        padding: 16px 12px;
+    }
+
+    .card-header {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    /* Balance display larger on mobile */
+    #transfer-balance {
+        font-size: 24px;
+    }
+
+    /* Family code display readable on mobile */
+    #family-code-display {
+        font-size: 24px;
+        letter-spacing: 6px;
+    }
+}
