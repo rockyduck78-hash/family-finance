@@ -279,11 +279,12 @@
         }
 
         async function loadData() {
-            const [userData, usersData, requestsData, familyData] = await Promise.all([
+            const [userData, usersData, requestsData, familyData, sentRequestsData] = await Promise.all([
                 apiGet('/api/user/' + user),
                 apiGet('/api/users'),
                 apiGet('/api/user/' + user + '/requests'),
-                apiGet('/api/family/info')
+                apiGet('/api/family/info'),
+                apiGet('/api/user/' + user + '/sent-requests')
             ]);
             transactions = userData.transactions || [];
             allUsers = (usersData || []).filter(u => u !== user);
@@ -292,11 +293,9 @@
             const navEl = document.getElementById('nav-balance-amount');
             if (navEl) navEl.textContent = formatCurrency(currentBalance);
             renderUserDropdowns();
-            renderTransfers();
+            renderTransfers(sentRequestsData || []);
             renderRequests(requestsData || []);
             renderFamilyGroup(familyData);
-
-            // No payment processor link needed
         }
 
         function fmt(n) {
@@ -491,25 +490,55 @@
             updateDogWalkDisplay();
         }
 
-        function renderTransfers() {
+        function renderTransfers(sentRequests) {
             const list = document.getElementById('transfer-list');
             const txs = transactions.filter(t => t.category === 'transfer');
-            if (!txs.length) {
+
+            // Build combined list: completed transfers + pending sent requests
+            const completed = txs.map(t => ({
+                date: t.date,
+                description: t.description,
+                amount: t.amount,
+                type: t.type,
+                status: 'completed'
+            }));
+
+            const pending = (sentRequests || []).map(r => ({
+                date: r.date,
+                description: 'Requested from ' + escapeHtml(r.toUsername) + (r.description ? ': ' + r.description : ''),
+                amount: r.amount,
+                type: 'income', // would be income when approved
+                status: 'pending'
+            }));
+
+            const all = [...completed, ...pending].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            if (!all.length) {
                 list.innerHTML = '<div class="empty-state"><span class="icon">&#8644;</span><p>No transfers yet</p></div>';
                 return;
             }
-            list.innerHTML = txs.sort((a, b) => new Date(b.date) - new Date(a.date)).map(t => `
-                <div class="transaction-item">
-                    <div class="transaction-left">
-                        <div class="transaction-icon">${t.type === 'income' ? '&#8593;' : '&#8595;'}</div>
-                        <div class="transaction-info">
-                            <h4>${escapeHtml(t.description)}</h4>
-                            <span>${new Date(t.date).toLocaleDateString()}</span>
+
+            list.innerHTML = all.map(t => {
+                const isPending = t.status === 'pending';
+                const badge = isPending
+                    ? '<span style="font-size:11px;background:var(--yellow-100,#fef9c3);color:#854d0e;padding:2px 7px;border-radius:4px;margin-left:6px;font-weight:600;">Pending</span>'
+                    : '';
+                const amountColor = isPending ? 'color:var(--gray-400)' : (t.type === 'income' ? 'color:var(--green-500)' : 'color:var(--red-500)');
+                const amountPrefix = isPending ? '' : (t.type === 'income' ? '+' : '-');
+                const icon = isPending ? '&#9201;' : (t.type === 'income' ? '&#8593;' : '&#8595;');
+                return `
+                    <div class="transaction-item">
+                        <div class="transaction-left">
+                            <div class="transaction-icon" style="${isPending ? 'opacity:0.5' : ''}">${icon}</div>
+                            <div class="transaction-info">
+                                <h4>${escapeHtml(t.description)}${badge}</h4>
+                                <span>${new Date(t.date).toLocaleDateString()}</span>
+                            </div>
                         </div>
+                        <span class="transaction-amount" style="${amountColor}">${amountPrefix}${fmt(t.amount)}</span>
                     </div>
-                    <span class="transaction-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${fmt(t.amount)}</span>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         function renderRequests(requests) {

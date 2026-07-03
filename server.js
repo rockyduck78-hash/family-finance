@@ -1058,6 +1058,28 @@ app.get('/api/user/:username/requests', authMiddleware, ownerOnly, async (req, r
     }
 });
 
+// Get pending requests sent BY a user (stored on recipients' accounts)
+app.get('/api/user/:username/sent-requests', authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const fromUsername = req.params.username;
+        // Find all users who have a pendingRequest from this user
+        const usersWithRequests = await User.find(
+            { 'pendingRequests.fromUsername': fromUsername },
+            { username: 1, pendingRequests: 1 }
+        );
+        const sent = [];
+        usersWithRequests.forEach(u => {
+            (u.pendingRequests || [])
+                .filter(r => r.fromUsername === fromUsername)
+                .forEach(r => sent.push({ ...r.toObject(), toUsername: u.username }));
+        });
+        res.json(sent);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Approve a money request
 app.post('/api/user/:username/approve-request/:requestId', authMiddleware, ownerOnly, async (req, res) => {
     try {
