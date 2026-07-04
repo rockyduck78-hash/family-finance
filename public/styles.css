@@ -2737,3 +2737,34 @@ body.theme-blue .form-group select {
         grid-template-columns: 1fr;
     }
 }
+
+/* ===== Transfer mode toggle buttons ===== */
+.mode-btn {
+    flex: 1;
+    padding: 8px 14px;
+    border: none;
+    background: transparent;
+    border-radius: calc(var(--radius) - 1px);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-500);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    text-align: center;
+}
+
+.mode-btn.active {
+    background: var(--white);
+    color: var(--blue-600);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.10);
+}
+
+.mode-btn:hover:not(.active) {
+    color: var(--gray-700);
+}
+
+body.theme-dark .mode-btn.active,
+body.theme-blue .mode-btn.active {
+    background: #2d3748;
+    color: #93c5fd;
+}

@@ -77,123 +77,103 @@
 
             <!-- Tab: Transfers -->
             <div id="tab-transfers" class="tab-panel active">
+
+                <!-- Combined Send / Request card -->
                 <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">Send Money</span>
+                    <!-- Mode toggle -->
+                    <div style="display:flex;gap:0;background:var(--gray-100);border-radius:var(--radius);padding:3px;margin-bottom:18px;">
+                        <button type="button" id="mode-send-btn" class="mode-btn active" onclick="setTransferMode('send')">&#8595; Send Money</button>
+                        <button type="button" id="mode-request-btn" class="mode-btn" onclick="setTransferMode('request')">&#8593; Request Money</button>
                     </div>
-                    <form id="transfer-form">
+
+                    <!-- Shared: recipient -->
                     <div class="form-group">
-                        <label>Recipient</label>
+                        <label id="recipient-label">To</label>
                         <select id="transfer-to" required>
                             <option value="">Select a user...</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>Type</label>
-                        <select id="transfer-type" onchange="onTransferTypeChange()">
-                            <option value="custom">Custom Amount</option>
-                            <option value="firstmate">First Mate ($22)</option>
-                            <option value="videogames">Video Games</option>
-                            <option value="gym">Gym</option>
-                            <option value="dogwalk">Dog Walk</option>
-                        </select>
+
+                    <!-- Send-only: preset type -->
+                    <div id="send-only-fields">
+                        <div class="form-group">
+                            <label>Type</label>
+                            <select id="transfer-type" onchange="onTransferTypeChange()">
+                                <option value="custom">Custom Amount</option>
+                                <option value="firstmate">First Mate ($22)</option>
+                                <option value="videogames">Video Games</option>
+                                <option value="gym">Gym</option>
+                                <option value="dogwalk">Dog Walk</option>
+                            </select>
+                        </div>
+                        <div id="preset-options" style="display:none;">
+                            <div id="opt-videogames" class="preset-panel" style="display:none;">
+                                <div class="form-group">
+                                    <label>Hours Played</label>
+                                    <div class="counter-row">
+                                        <button type="button" class="btn-counter" onclick="adjustHours(-1)">-</button>
+                                        <span class="counter-value" id="hours-display">1</span>
+                                        <button type="button" class="btn-counter" onclick="adjustHours(1)">+</button>
+                                    </div>
+                                </div>
+                                <div class="preset-breakdown" id="hours-breakdown"></div>
+                            </div>
+                            <div id="opt-gym" class="preset-panel" style="display:none;">
+                                <div class="form-group">
+                                    <label>Machines Used</label>
+                                    <div class="counter-row">
+                                        <button type="button" class="btn-counter" onclick="adjustMachines(-1)">-</button>
+                                        <span class="counter-value" id="machines-display">1</span>
+                                        <button type="button" class="btn-counter" onclick="adjustMachines(1)">+</button>
+                                    </div>
+                                </div>
+                                <div class="preset-breakdown" id="machines-breakdown"></div>
+                            </div>
+                            <div id="opt-dogwalk" class="preset-panel" style="display:none;">
+                                <div class="form-group">
+                                    <label>Number of Walks</label>
+                                    <div class="counter-row">
+                                        <button type="button" class="btn-counter" onclick="adjustWalks(-1)">-</button>
+                                        <span class="counter-value" id="walks-display">1</span>
+                                        <button type="button" class="btn-counter" onclick="adjustWalks(1)">+</button>
+                                    </div>
+                                </div>
+                                <div class="preset-breakdown" id="walks-breakdown"></div>
+                            </div>
+                            <div id="opt-firstmate" class="preset-panel" style="display:none;">
+                                <div class="preset-flat">Flat rate: <strong>$22.00</strong></div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div id="preset-options" style="display:none;">
-                        <div id="opt-videogames" class="preset-panel" style="display:none;">
-                            <div class="form-group">
-                                <label>Hours Played</label>
-                                <div class="counter-row">
-                                    <button type="button" class="btn-counter" onclick="adjustHours(-1)">-</button>
-                                    <span class="counter-value" id="hours-display">1</span>
-                                    <button type="button" class="btn-counter" onclick="adjustHours(1)">+</button>
-                                </div>
-                            </div>
-                            <div class="preset-breakdown" id="hours-breakdown"></div>
-                        </div>
-                        <div id="opt-gym" class="preset-panel" style="display:none;">
-                            <div class="form-group">
-                                <label>Machines Used</label>
-                                <div class="counter-row">
-                                    <button type="button" class="btn-counter" onclick="adjustMachines(-1)">-</button>
-                                    <span class="counter-value" id="machines-display">1</span>
-                                    <button type="button" class="btn-counter" onclick="adjustMachines(1)">+</button>
-                                </div>
-                            </div>
-                            <div class="preset-breakdown" id="machines-breakdown"></div>
-                        </div>
-                        <div id="opt-dogwalk" class="preset-panel" style="display:none;">
-                            <div class="form-group">
-                                <label>Number of Walks</label>
-                                <div class="counter-row">
-                                    <button type="button" class="btn-counter" onclick="adjustWalks(-1)">-</button>
-                                    <span class="counter-value" id="walks-display">1</span>
-                                    <button type="button" class="btn-counter" onclick="adjustWalks(1)">+</button>
-                                </div>
-                            </div>
-                            <div class="preset-breakdown" id="walks-breakdown"></div>
-                        </div>
-                        <div id="opt-firstmate" class="preset-panel" style="display:none;">
-                            <div class="preset-flat">Flat rate: <strong>$22.00</strong></div>
-                        </div>
-                    </div>
-
+                    <!-- Shared: amount + note/reason -->
                     <div class="form-row">
                         <div class="form-group">
                             <label>Amount ($)</label>
-                            <input type="number" id="transfer-amount" step="0.01" min="0.01" placeholder="0.00" required>
+                            <input type="number" id="transfer-amount" step="0.01" min="0.01" placeholder="0.00">
                         </div>
                         <div class="form-group">
-                            <label>Note (optional)</label>
+                            <label id="note-label">Note (optional)</label>
                             <input type="text" id="transfer-note" placeholder="e.g., For groceries">
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-primary">Send Money</button>
-                </form>
-            </div>
+                    <button type="button" id="transfer-submit-btn" class="btn btn-primary" onclick="submitTransfer()">Send Money</button>
+                </div>
 
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title">Transfer History</span>
-                </div>
-                <div class="transaction-list" id="transfer-list">
-                    <div class="empty-state"><span class="icon">&#8644;</span><p>No transfers yet</p></div>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title">Request Money</span>
-                </div>
-                <form id="request-form">
-                    <div class="form-group">
-                        <label>Request From</label>
-                        <select id="request-to" required>
-                            <option value="">Select a user...</option>
-                        </select>
+                <!-- Combined history + pending -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">History</span>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Amount ($)</label>
-                            <input type="number" id="request-amount" step="0.01" min="0.01" placeholder="0.00" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Reason (optional)</label>
-                            <input type="text" id="request-desc" placeholder="e.g., For groceries">
-                        </div>
+                    <div id="transfer-list">
+                        <div class="empty-state"><span class="icon">&#8644;</span><p>No transfers yet</p></div>
                     </div>
-                    <button type="submit" class="btn btn-primary">Send Request</button>
-                </form>
-            </div>
+                    <div id="pending-requests-section" style="display:none;">
+                        <div style="padding:10px 0 4px;font-size:12px;font-weight:600;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.05em;border-top:1px solid var(--gray-100);margin-top:8px;">Pending Requests</div>
+                        <div id="requests-list"></div>
+                    </div>
+                </div>
 
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title">Pending Requests</span>
-                </div>
-                <div id="requests-list">
-                    <div class="empty-state"><span class="icon">&#128276;</span><p>No pending requests</p></div>
-                </div>
-            </div>
             </div><!-- end tab-transfers -->
 
             <!-- Tab: Family Group -->
@@ -263,12 +243,81 @@
         if (!user) window.location.href = '/';
         initUserMenu(user);
 
+        let transferMode = 'send'; // 'send' or 'request'
+
         let transactions = [];
         let allUsers = [];
         let videoGameHours = 1;
         let gymMachines = 1;
         let dogWalks = 1;
         let currentBalance = 0;
+
+        function setTransferMode(mode) {
+            transferMode = mode;
+            const isSend = mode === 'send';
+            document.getElementById('mode-send-btn').classList.toggle('active', isSend);
+            document.getElementById('mode-request-btn').classList.toggle('active', !isSend);
+            document.getElementById('send-only-fields').style.display = isSend ? '' : 'none';
+            document.getElementById('recipient-label').textContent = isSend ? 'To' : 'Request From';
+            document.getElementById('note-label').textContent = isSend ? 'Note (optional)' : 'Reason (optional)';
+            document.getElementById('transfer-submit-btn').textContent = isSend ? 'Send Money' : 'Send Request';
+            document.getElementById('transfer-submit-btn').style.background = isSend ? '' : 'var(--green-500)';
+            // Reset preset state when switching
+            if (!isSend) {
+                document.getElementById('preset-options').style.display = 'none';
+                document.getElementById('transfer-amount').readOnly = false;
+            }
+        }
+
+        async function submitTransfer() {
+            const to = document.getElementById('transfer-to').value;
+            const amount = parseFloat(document.getElementById('transfer-amount').value);
+            const note = document.getElementById('transfer-note').value.trim();
+
+            if (!to) return notifyError('Select a user');
+            if (to === user) return notifyError("Can't send to yourself");
+            if (!amount || amount <= 0) return notifyError('Enter a valid amount');
+
+            const btn = document.getElementById('transfer-submit-btn');
+            btn.disabled = true;
+            const origText = btn.textContent;
+            btn.textContent = 'Sending...';
+
+            try {
+                if (transferMode === 'send') {
+                    if (amount > currentBalance) {
+                        notifyError('Insufficient balance. Your balance is ' + formatCurrency(currentBalance));
+                        return;
+                    }
+                    const data = await apiPost('/api/transfer', { from: user, to, amount, note });
+                    if (data.error) return notifyError(data.error);
+                    if (data.pending) {
+                        notifyInfo('Transfer pending owner approval');
+                    } else {
+                        notifySuccess('Sent ' + formatCurrency(amount) + ' to ' + to);
+                    }
+                    // Reset preset state
+                    document.getElementById('transfer-type').value = 'custom';
+                    document.getElementById('preset-options').style.display = 'none';
+                    document.getElementById('transfer-amount').readOnly = false;
+                    videoGameHours = 1; gymMachines = 1; dogWalks = 1;
+                } else {
+                    const data = await apiPost('/api/user/' + user + '/request-money', {
+                        toUsername: to, amount, description: note
+                    });
+                    if (data.error) return notifyError(data.error);
+                    notifySuccess('Request sent to ' + to);
+                }
+                // Clear fields
+                document.getElementById('transfer-to').value = '';
+                document.getElementById('transfer-amount').value = '';
+                document.getElementById('transfer-note').value = '';
+                loadData();
+            } finally {
+                btn.disabled = false;
+                btn.textContent = origText;
+            }
+        }
 
         function switchTab(name, btn) {
             document.querySelectorAll('.page-tab').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected','false'); });
@@ -392,16 +441,10 @@
 
         function renderUserDropdowns() {
             const transferSel = document.getElementById('transfer-to');
-            const requestSel = document.getElementById('request-to');
             const transferVal = transferSel.value;
-            const requestVal = requestSel.value;
-
             const options = allUsers.map(u => `<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
             transferSel.innerHTML = '<option value="">Select a user...</option>' + options;
-            requestSel.innerHTML = '<option value="">Select a user...</option>' + options;
-
             if (allUsers.includes(transferVal)) transferSel.value = transferVal;
-            if (allUsers.includes(requestVal)) requestSel.value = requestVal;
         }
 
         function calcVideoGameAmount(hours) {
@@ -542,22 +585,24 @@
         }
 
         function renderRequests(requests) {
+            const section = document.getElementById('pending-requests-section');
             const list = document.getElementById('requests-list');
             if (!requests.length) {
-                list.innerHTML = '<div class="empty-state"><span class="icon">&#128276;</span><p>No pending requests</p></div>';
+                section.style.display = 'none';
                 return;
             }
+            section.style.display = 'block';
             list.innerHTML = requests.map(r => `
                 <div class="transaction-item">
                     <div class="transaction-left">
                         <div class="transaction-icon">&#128276;</div>
                         <div class="transaction-info">
                             <h4>${escapeHtml(r.fromUsername)} requests ${fmt(r.amount)}</h4>
-                            <span>${escapeHtml(r.description)} &middot; ${new Date(r.date).toLocaleDateString()}</span>
+                            <span>${escapeHtml(r.description || '')} &middot; ${new Date(r.date).toLocaleDateString()}</span>
                         </div>
                     </div>
-                    <div style="display:flex;gap:8px;">
-                        <button class="btn btn-sm btn-primary" onclick="approveRequest('${r.id}')">Approve</button>
+                    <div style="display:flex;gap:6px;">
+                        <button class="btn btn-sm btn-success" onclick="approveRequest('${r.id}')">Approve</button>
                         <button class="btn btn-sm btn-secondary" onclick="denyRequest('${r.id}')">Deny</button>
                     </div>
                 </div>
@@ -575,47 +620,6 @@
             if (data.error) return notifyError(data.error);
             loadData();
         }
-
-        document.getElementById('transfer-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const to = document.getElementById('transfer-to').value;
-            const amount = parseFloat(document.getElementById('transfer-amount').value);
-            const note = document.getElementById('transfer-note').value.trim();
-            if (!to) return notifyError('Select a recipient');
-            if (to === user) return notifyError("Can't send to yourself");
-            if (amount > currentBalance) return notifyError('Insufficient balance. Your balance is ' + formatCurrency(currentBalance));
-            const data = await apiPost('/api/transfer', {
-                from: user, to, amount, note
-            });
-            if (data.error) return notifyError(data.error);
-            if (data.pending) {
-                notifyInfo('Transfer pending owner approval');
-            } else {
-                notifySuccess('Sent $' + amount.toFixed(2) + ' to ' + to);
-            }
-            e.target.reset();
-            document.getElementById('transfer-type').value = 'custom';
-            document.getElementById('preset-options').style.display = 'none';
-            document.getElementById('transfer-amount').readOnly = false;
-            videoGameHours = 1;
-            gymMachines = 1;
-            dogWalks = 1;
-            loadData();
-        });
-
-        document.getElementById('request-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const toUsername = document.getElementById('request-to').value;
-            const amount = parseFloat(document.getElementById('request-amount').value);
-            const description = document.getElementById('request-desc').value.trim();
-            if (!toUsername) return notifyError('Select a user to request from');
-            const data = await apiPost('/api/user/' + user + '/request-money', {
-                toUsername, amount, description
-            });
-            if (data.error) return notifyError(data.error);
-            notifySuccess('Request sent to ' + toUsername);
-            e.target.reset();
-        });
 
         loadData();
 
