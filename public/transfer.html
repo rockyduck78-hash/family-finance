@@ -542,11 +542,27 @@
             updateGymDisplay();
         }
 
+        function calcDogWalkAmount(walks) {
+            // Walk 1: $2, walk 2: +$3 = $5, walk 3: +$4 = $9, walk 4+: +$4 each
+            if (walks <= 0) return 0;
+            if (walks === 1) return 2;
+            if (walks === 2) return 5;
+            return 9 + (walks - 3) * 4;
+        }
+
         function updateDogWalkDisplay() {
             document.getElementById('walks-display').textContent = dogWalks;
-            const amount = dogWalks * 3;
+            const amount = calcDogWalkAmount(dogWalks);
             document.getElementById('transfer-amount').value = amount.toFixed(2);
-            document.getElementById('walks-breakdown').textContent = dogWalks + ' walk' + (dogWalks > 1 ? 's' : '') + ' x $3.00 = $' + amount.toFixed(2);
+            const rates = [2, 5, 9];
+            let breakdown = '';
+            if (dogWalks <= 3) {
+                const perWalk = dogWalks === 1 ? '$2' : dogWalks === 2 ? '$2 + $3' : '$2 + $3 + $4';
+                breakdown = dogWalks + ' walk' + (dogWalks > 1 ? 's' : '') + ': ' + perWalk + ' = $' + amount.toFixed(2);
+            } else {
+                breakdown = '3 walks: $9 + ' + (dogWalks - 3) + ' extra × $4 = $' + amount.toFixed(2);
+            }
+            document.getElementById('walks-breakdown').textContent = breakdown;
             document.getElementById('transfer-note').value = 'Dog Walk - ' + dogWalks + ' walk' + (dogWalks > 1 ? 's' : '');
         }
 
