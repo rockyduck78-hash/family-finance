@@ -94,55 +94,54 @@
                         </select>
                     </div>
 
-                    <!-- Send-only: preset type -->
-                    <div id="send-only-fields">
-                        <div class="form-group">
-                            <label>Type</label>
-                            <select id="transfer-type" onchange="onTransferTypeChange()">
-                                <option value="custom">Custom Amount</option>
-                                <option value="firstmate">First Mate ($22)</option>
-                                <option value="videogames">Video Games</option>
-                                <option value="gym">Gym</option>
-                                <option value="dogwalk">Dog Walk</option>
-                            </select>
+                    <!-- Shared: preset type (send + request) -->
+                    <div class="form-group">
+                        <label>Type</label>
+                        <select id="transfer-type" onchange="onTransferTypeChange()">
+                            <option value="custom">Custom Amount</option>
+                            <option value="firstmate">First Mate ($22)</option>
+                            <option value="videogames">Video Games</option>
+                            <option value="gym">Gym</option>
+                            <option value="dogwalk">Dog Walk</option>
+                        </select>
+                    </div>
+
+                    <div id="preset-options" style="display:none;">
+                        <div id="opt-videogames" class="preset-panel" style="display:none;">
+                            <div class="form-group">
+                                <label>Hours Played</label>
+                                <div class="counter-row">
+                                    <button type="button" class="btn-counter" onclick="adjustHours(-1)">-</button>
+                                    <span class="counter-value" id="hours-display">1</span>
+                                    <button type="button" class="btn-counter" onclick="adjustHours(1)">+</button>
+                                </div>
+                            </div>
+                            <div class="preset-breakdown" id="hours-breakdown"></div>
                         </div>
-                        <div id="preset-options" style="display:none;">
-                            <div id="opt-videogames" class="preset-panel" style="display:none;">
-                                <div class="form-group">
-                                    <label>Hours Played</label>
-                                    <div class="counter-row">
-                                        <button type="button" class="btn-counter" onclick="adjustHours(-1)">-</button>
-                                        <span class="counter-value" id="hours-display">1</span>
-                                        <button type="button" class="btn-counter" onclick="adjustHours(1)">+</button>
-                                    </div>
+                        <div id="opt-gym" class="preset-panel" style="display:none;">
+                            <div class="form-group">
+                                <label>Machines Used</label>
+                                <div class="counter-row">
+                                    <button type="button" class="btn-counter" onclick="adjustMachines(-1)">-</button>
+                                    <span class="counter-value" id="machines-display">1</span>
+                                    <button type="button" class="btn-counter" onclick="adjustMachines(1)">+</button>
                                 </div>
-                                <div class="preset-breakdown" id="hours-breakdown"></div>
                             </div>
-                            <div id="opt-gym" class="preset-panel" style="display:none;">
-                                <div class="form-group">
-                                    <label>Machines Used</label>
-                                    <div class="counter-row">
-                                        <button type="button" class="btn-counter" onclick="adjustMachines(-1)">-</button>
-                                        <span class="counter-value" id="machines-display">1</span>
-                                        <button type="button" class="btn-counter" onclick="adjustMachines(1)">+</button>
-                                    </div>
+                            <div class="preset-breakdown" id="machines-breakdown"></div>
+                        </div>
+                        <div id="opt-dogwalk" class="preset-panel" style="display:none;">
+                            <div class="form-group">
+                                <label>Number of Walks</label>
+                                <div class="counter-row">
+                                    <button type="button" class="btn-counter" onclick="adjustWalks(-1)">-</button>
+                                    <span class="counter-value" id="walks-display">1</span>
+                                    <button type="button" class="btn-counter" onclick="adjustWalks(1)">+</button>
                                 </div>
-                                <div class="preset-breakdown" id="machines-breakdown"></div>
                             </div>
-                            <div id="opt-dogwalk" class="preset-panel" style="display:none;">
-                                <div class="form-group">
-                                    <label>Number of Walks</label>
-                                    <div class="counter-row">
-                                        <button type="button" class="btn-counter" onclick="adjustWalks(-1)">-</button>
-                                        <span class="counter-value" id="walks-display">1</span>
-                                        <button type="button" class="btn-counter" onclick="adjustWalks(1)">+</button>
-                                    </div>
-                                </div>
-                                <div class="preset-breakdown" id="walks-breakdown"></div>
-                            </div>
-                            <div id="opt-firstmate" class="preset-panel" style="display:none;">
-                                <div class="preset-flat">Flat rate: <strong>$22.00</strong></div>
-                            </div>
+                            <div class="preset-breakdown" id="walks-breakdown"></div>
+                        </div>
+                        <div id="opt-firstmate" class="preset-panel" style="display:none;">
+                            <div class="preset-flat">Flat rate: <strong>$22.00</strong></div>
                         </div>
                     </div>
 
@@ -257,16 +256,10 @@
             const isSend = mode === 'send';
             document.getElementById('mode-send-btn').classList.toggle('active', isSend);
             document.getElementById('mode-request-btn').classList.toggle('active', !isSend);
-            document.getElementById('send-only-fields').style.display = isSend ? '' : 'none';
             document.getElementById('recipient-label').textContent = isSend ? 'To' : 'Request From';
             document.getElementById('note-label').textContent = isSend ? 'Note (optional)' : 'Reason (optional)';
             document.getElementById('transfer-submit-btn').textContent = isSend ? 'Send Money' : 'Send Request';
             document.getElementById('transfer-submit-btn').style.background = isSend ? '' : 'var(--green-500)';
-            // Reset preset state when switching
-            if (!isSend) {
-                document.getElementById('preset-options').style.display = 'none';
-                document.getElementById('transfer-amount').readOnly = false;
-            }
         }
 
         async function submitTransfer() {
@@ -312,6 +305,10 @@
                 document.getElementById('transfer-to').value = '';
                 document.getElementById('transfer-amount').value = '';
                 document.getElementById('transfer-note').value = '';
+                document.getElementById('transfer-type').value = 'custom';
+                document.getElementById('preset-options').style.display = 'none';
+                document.getElementById('transfer-amount').readOnly = false;
+                videoGameHours = 1; gymMachines = 1; dogWalks = 1;
                 loadData();
             } finally {
                 btn.disabled = false;
