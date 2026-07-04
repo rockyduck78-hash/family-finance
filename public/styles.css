@@ -2456,3 +2456,284 @@ body.theme-blue .page-tab:hover {
         letter-spacing: 6px;
     }
 }
+
+/* ===== UI CLEANUP — tighter, cleaner, less cluttered ===== */
+
+/* --- Spacing & Layout --- */
+.main-content {
+    padding: 24px 28px;
+    max-width: 860px; /* narrower keeps content focused */
+}
+
+.page-header {
+    margin-bottom: 20px;
+}
+
+.page-header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.page-header p {
+    display: none; /* subtitle repeats the page name — remove visual noise */
+}
+
+/* --- Cards: lighter, less padding, softer borders --- */
+.card {
+    padding: 18px 20px;
+    margin-bottom: 14px;
+    border-color: var(--gray-100);
+    box-shadow: none;
+    border-radius: var(--radius-lg);
+}
+
+.card-header {
+    margin-bottom: 14px;
+}
+
+.card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-700);
+    letter-spacing: 0;
+}
+
+/* --- Stats: less towering --- */
+.stats-grid {
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.stat-card {
+    padding: 16px 18px;
+    border-color: var(--gray-100);
+    box-shadow: none;
+}
+
+.stat-label {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+}
+
+.stat-value {
+    font-size: 22px;
+    font-weight: 700;
+}
+
+/* --- Charts --- */
+.charts-grid {
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.chart-card {
+    padding: 16px 18px;
+    border-color: var(--gray-100);
+    box-shadow: none;
+}
+
+.chart-card h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-500);
+    margin-bottom: 14px;
+}
+
+.chart-container {
+    height: 200px;
+}
+
+/* --- Nav: no distracting scale on hover --- */
+.topnav-nav a:hover {
+    transform: none;
+}
+
+.topnav-nav a.active {
+    transform: none;
+}
+
+/* --- Forms: tighter --- */
+.form-group {
+    margin-bottom: 14px;
+}
+
+.form-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gray-500);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.form-group input,
+.form-group select {
+    padding: 9px 12px;
+    font-size: 14px;
+    border-color: var(--gray-200);
+    border-radius: var(--radius);
+    background: var(--gray-50);
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    background: var(--white);
+    border-color: var(--blue-500);
+    box-shadow: 0 0 0 3px rgba(26,115,199,0.08);
+}
+
+.form-row {
+    gap: 12px;
+}
+
+/* --- Buttons: slightly more compact --- */
+.btn {
+    padding: 9px 18px;
+    font-size: 13px;
+    border-radius: var(--radius);
+}
+
+.btn-sm {
+    padding: 5px 11px;
+    font-size: 12px;
+}
+
+/* --- Transaction items: lighter dividers, smaller icons --- */
+.transaction-item {
+    padding: 10px 0;
+    border-bottom-color: var(--gray-50);
+}
+
+.transaction-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+    border-radius: 8px;
+    background: var(--gray-50);
+    color: var(--gray-500);
+}
+
+.transaction-left {
+    gap: 10px;
+}
+
+.transaction-info h4 {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.transaction-info span {
+    font-size: 11px;
+    color: var(--gray-400);
+}
+
+.transaction-amount {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* expense amounts softer — red is aggressive for routine spending */
+.transaction-amount.expense {
+    color: var(--gray-500);
+}
+
+/* --- Balance pill in nav --- */
+.topnav-balance {
+    padding: 5px 12px;
+    font-size: 13px;
+}
+
+/* --- Empty states: less prominent --- */
+.empty-state {
+    padding: 24px;
+    text-align: center;
+    color: var(--gray-400);
+}
+
+.empty-state .icon {
+    font-size: 24px;
+    display: block;
+    margin-bottom: 6px;
+    opacity: 0.5;
+}
+
+.empty-state p {
+    font-size: 13px;
+}
+
+/* --- Modal: tighter --- */
+.modal {
+    padding: 24px;
+}
+
+.modal h3 {
+    font-size: 16px;
+    margin-bottom: 16px;
+}
+
+/* --- Page tabs: cleaner --- */
+.page-tabs {
+    margin-bottom: 16px;
+    background: var(--gray-100);
+}
+
+.page-tab {
+    font-size: 13px;
+    padding: 8px 14px;
+}
+
+/* --- Dark theme overrides --- */
+body.theme-dark .card,
+body.theme-dark .stat-card,
+body.theme-dark .chart-card {
+    border-color: rgba(255,255,255,0.06);
+}
+
+body.theme-dark .transaction-item {
+    border-bottom-color: rgba(255,255,255,0.04);
+}
+
+body.theme-dark .transaction-icon {
+    background: rgba(255,255,255,0.05);
+}
+
+body.theme-dark .form-group input,
+body.theme-dark .form-group select {
+    background: rgba(255,255,255,0.04);
+    border-color: rgba(255,255,255,0.1);
+}
+
+/* --- Blue theme overrides --- */
+body.theme-blue .card,
+body.theme-blue .stat-card,
+body.theme-blue .chart-card {
+    border-color: rgba(255,255,255,0.06);
+}
+
+body.theme-blue .form-group input,
+body.theme-blue .form-group select {
+    background: rgba(255,255,255,0.04);
+    border-color: rgba(255,255,255,0.1);
+}
+
+/* --- Mobile --- */
+@media (max-width: 600px) {
+    .main-content {
+        padding: 16px 14px;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .stat-card:last-child {
+        grid-column: 1 / -1;
+    }
+
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+}
