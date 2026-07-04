@@ -120,11 +120,19 @@
                         </div>
                         <div id="opt-gym" class="preset-panel" style="display:none;">
                             <div class="form-group">
-                                <label>Machines Used</label>
+                                <label>Leg Machines ($4 each)</label>
                                 <div class="counter-row">
-                                    <button type="button" class="btn-counter" onclick="adjustMachines(-1)">-</button>
-                                    <span class="counter-value" id="machines-display">1</span>
-                                    <button type="button" class="btn-counter" onclick="adjustMachines(1)">+</button>
+                                    <button type="button" class="btn-counter" onclick="adjustLegMachines(-1)">-</button>
+                                    <span class="counter-value" id="leg-machines-display">0</span>
+                                    <button type="button" class="btn-counter" onclick="adjustLegMachines(1)">+</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Upper Body Machines ($3 each)</label>
+                                <div class="counter-row">
+                                    <button type="button" class="btn-counter" onclick="adjustUpperMachines(-1)">-</button>
+                                    <span class="counter-value" id="upper-machines-display">0</span>
+                                    <button type="button" class="btn-counter" onclick="adjustUpperMachines(1)">+</button>
                                 </div>
                             </div>
                             <div class="preset-breakdown" id="machines-breakdown"></div>
@@ -247,7 +255,8 @@
         let transactions = [];
         let allUsers = [];
         let videoGameHours = 1;
-        let gymMachines = 1;
+        let gymLegMachines = 0;
+        let gymUpperMachines = 0;
         let dogWalks = 1;
         let currentBalance = 0;
 
@@ -293,7 +302,7 @@
                     document.getElementById('transfer-type').value = 'custom';
                     document.getElementById('preset-options').style.display = 'none';
                     document.getElementById('transfer-amount').readOnly = false;
-                    videoGameHours = 1; gymMachines = 1; dogWalks = 1;
+                    videoGameHours = 1; gymLegMachines = 0; gymUpperMachines = 0; dogWalks = 1;
                 } else {
                     const data = await apiPost('/api/user/' + user + '/request-money', {
                         toUsername: to, amount, description: note
@@ -308,7 +317,7 @@
                 document.getElementById('transfer-type').value = 'custom';
                 document.getElementById('preset-options').style.display = 'none';
                 document.getElementById('transfer-amount').readOnly = false;
-                videoGameHours = 1; gymMachines = 1; dogWalks = 1;
+                videoGameHours = 1; gymLegMachines = 0; gymUpperMachines = 0; dogWalks = 1;
                 loadData();
             } finally {
                 btn.disabled = false;
@@ -478,6 +487,8 @@
                 updateVideoGameDisplay();
             } else if (type === 'gym') {
                 document.getElementById('opt-gym').style.display = 'block';
+                gymLegMachines = 0;
+                gymUpperMachines = 0;
                 updateGymDisplay();
             } else if (type === 'dogwalk') {
                 document.getElementById('opt-dogwalk').style.display = 'block';
@@ -505,15 +516,29 @@
         }
 
         function updateGymDisplay() {
-            document.getElementById('machines-display').textContent = gymMachines;
-            const amount = gymMachines * 4;
-            document.getElementById('transfer-amount').value = amount.toFixed(2);
-            document.getElementById('machines-breakdown').textContent = gymMachines + ' machine' + (gymMachines > 1 ? 's' : '') + ' x $4.00 = $' + amount.toFixed(2);
-            document.getElementById('transfer-note').value = 'Gym - ' + gymMachines + ' machine' + (gymMachines > 1 ? 's' : '');
+            document.getElementById('leg-machines-display').textContent = gymLegMachines;
+            document.getElementById('upper-machines-display').textContent = gymUpperMachines;
+            const legTotal = gymLegMachines * 4;
+            const upperTotal = gymUpperMachines * 3;
+            const total = legTotal + upperTotal;
+            document.getElementById('transfer-amount').value = total > 0 ? total.toFixed(2) : '';
+            const parts = [];
+            if (gymLegMachines > 0) parts.push(gymLegMachines + ' leg × $4 = $' + legTotal.toFixed(2));
+            if (gymUpperMachines > 0) parts.push(gymUpperMachines + ' upper × $3 = $' + upperTotal.toFixed(2));
+            document.getElementById('machines-breakdown').textContent = parts.length ? parts.join('  +  ') + '  =  $' + total.toFixed(2) : '';
+            const noteParts = [];
+            if (gymLegMachines > 0) noteParts.push(gymLegMachines + ' leg');
+            if (gymUpperMachines > 0) noteParts.push(gymUpperMachines + ' upper');
+            document.getElementById('transfer-note').value = noteParts.length ? 'Gym - ' + noteParts.join(', ') : 'Gym';
         }
 
-        function adjustMachines(delta) {
-            gymMachines = Math.max(1, gymMachines + delta);
+        function adjustLegMachines(delta) {
+            gymLegMachines = Math.max(0, gymLegMachines + delta);
+            updateGymDisplay();
+        }
+
+        function adjustUpperMachines(delta) {
+            gymUpperMachines = Math.max(0, gymUpperMachines + delta);
             updateGymDisplay();
         }
 
