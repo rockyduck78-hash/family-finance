@@ -75,8 +75,8 @@
                     <span class="card-title">Send to Doublons Bank</span>
                 </div>
                 <div style="padding:16px;">
-                    <div style="background:var(--amber-100);color:#78350f;border-radius:var(--radius);padding:10px 14px;font-size:13px;margin-bottom:14px;">
-                        &#9888; You must be <a href="https://doublons-bank.vercel.app" target="_blank" style="color:#92400e;font-weight:600;">logged into Doublons Bank</a> in this browser tab for transfers to work.
+                    <div style="background:var(--green-100);color:#14532d;border-radius:var(--radius);padding:10px 14px;font-size:13px;margin-bottom:14px;">
+                        &#10003; Transfers are processed server-side. No need to log into Doublons Bank separately.
                     </div>
                     <div class="form-group">
                         <label>Doublons Bank Username</label>
@@ -132,9 +132,7 @@
         if (!currentUser || !currentToken) { window.location.href = '/'; }
         initUserMenu(currentUser);
 
-        // Doublons Bank API — calls made client-side so the browser session cookie is included
-        var DBL_API = 'https://doublons-bank.vercel.app';
-        var DBL_KEY = 'dbl_sk_h1g1zhf72wugfoby5eu8adate01uonac4632sevu';
+        // Doublons Bank API — server-side proxy handles auth
         var currentBalance = 0;
 
         async function loadBalance() {
@@ -163,22 +161,6 @@
             else { btn.disabled = false; btn.textContent = originalText; }
         }
 
-        // Call Doublons Bank API directly from browser so session cookies are included
-        async function dblFetch(path, body) {
-            const res = await fetch(DBL_API + path, {
-                method: 'POST',
-                credentials: 'include',   // sends Doublons Bank session cookie
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': DBL_KEY
-                },
-                body: JSON.stringify({ ...body, apiKey: DBL_KEY })
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data?.error?.message || data?.error || 'Doublons Bank error (' + res.status + ')');
-            return data;
-        }
-
         async function sendToDoublons() {
             var toUsername = document.getElementById('doublons-to-username').value.trim();
             var amount = parseFloat(document.getElementById('doublons-amount').value);
@@ -190,27 +172,15 @@
 
             setBtnLoading('send-btn', true, 'Send to Doublons Bank');
             try {
-                // Step 1: deduct from Family Finance
-                var result = await apiPost('/api/external/withdraw', {
+                var result = await apiPost('/api/doublons/send', {
                     username: currentUser,
+                    toUsername: toUsername,
                     amount: amount,
                     note: note || 'Transfer to ' + toUsername + ' on Doublons Bank'
                 });
                 if (result.error) throw new Error(result.error);
 
-                // Step 2: deposit into Doublons Bank (browser-side, carries session cookie)
-                try {
-                    await dblFetch('/api/transfer', {
-                        toUsername: toUsername,
-                        amount: amount,
-                        note: note || 'Transfer from Family Finance'
-                    });
-                    showStatus('Sent $' + amount.toFixed(2) + ' to ' + toUsername + ' on Doublons Bank!', false);
-                } catch (dblErr) {
-                    // FF already deducted — show partial success and instructions
-                    showStatus('Deducted from Family Finance, but Doublons Bank transfer failed: ' + dblErr.message + '. Make sure you are logged into Doublons Bank in this browser.', true);
-                }
-
+                showStatus('Sent $' + amount.toFixed(2) + ' to ' + toUsername + ' on Doublons Bank!', false);
                 document.getElementById('doublons-amount').value = '';
                 document.getElementById('doublons-note').value = '';
                 loadBalance();

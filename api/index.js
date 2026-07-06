@@ -1407,6 +1407,69 @@ app.post('/api/external/withdraw', authLimiter, authMiddleware, async (req, res)
     }
 });
 
+// Doublons Bank server-side proxy — deposit into DB account
+const DBL_API = 'https://doublons-bank.vercel.app';
+const DBL_KEY = process.env.DBL_API_KEY || 'dbl_sk_h1g1zhf72wugfoby5eu8adate01uonac4632sevu';
+
+async function dblFetchWithCsrf(path, body) {
+    const csrfRes = await fetch(DBL_API + '/api/csrf-token');
+    const csrfData = await csrfRes.json();
+    const token = csrfData.token;
+    const res = await fetch(DBL_API + path, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + DBL_KEY,
+            'x-csrf-token': token
+        },
+        body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error?.message || data?.error || 'Doublons Bank error (' + res.status + ')');
+    return data;
+}
+
+app.post('/api/doublons/send', authLimiter, authMiddleware, async (req, res) => {
+    try {
+        const { username, toUsername, amount, note } = req.body;
+        if (req.authUser !== username) {
+            return res.status(403).json({ error: 'Cannot send on behalf of another user' });
+        }
+        if (!toUsername) return res.status(400).json({ error: 'Doublons Bank username required' });
+        if (!amount || amount <= 0) return res.status(400).json({ error: 'Invalid amount' });
+
+        const userDoc = await User.findOne({ username });
+        if (!userDoc) return res.status(404).json({ error: 'User not found' });
+
+        const txs = userDoc.transactions || [];
+        const income = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+        const expenses = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+        const balance = income - expenses;
+        if (amount > balance) return res.status(400).json({ error: 'Insufficient balance' });
+
+        const dblResult = await dblFetchWithCsrf('/api/external/deposit', {
+            username: toUsername,
+            amount: amount.toFixed(2),
+            description: note || 'Transfer from Family Finance',
+            sender: username,
+            reference: 'ff-' + Date.now()
+        });
+
+        if (!userDoc.transactions) userDoc.transactions = [];
+        const now = new Date().toISOString();
+        userDoc.transactions.push({
+            id: Date.now(),
+            description: `Doublons Bank Withdrawal: ${note || 'Transfer to ' + toUsername}`,
+            amount, type: 'expense', category: 'external', date: now
+        });
+        await userDoc.save();
+        res.json({ success: true, message: `Sent $${amount.toFixed(2)} to ${toUsername} on Doublons Bank` });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: err.message || 'Doublons Bank transfer failed' });
+    }
+});
+
 // Page routes
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'dashboard.html')));
