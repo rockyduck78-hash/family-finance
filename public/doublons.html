@@ -96,29 +96,6 @@
                 </div>
             </div>
 
-            <!-- Receive from Doublons Bank -->
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title">Receive from Doublons Bank</span>
-                </div>
-                <div style="padding:16px;">
-                    <p style="margin-bottom:12px;color:var(--gray-400);">Record money received from Doublons Bank into your Family Finance account</p>
-                    <div class="form-group">
-                        <label>Amount ($)</label>
-                        <input type="number" id="doublons-deposit-amount" step="0.01" min="0.01" placeholder="0.00">
-                    </div>
-                    <div class="form-group">
-                        <label>Note (optional)</label>
-                        <input type="text" id="doublons-deposit-note" placeholder="e.g., Payment from Doublons">
-                    </div>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                        <button class="btn btn-primary" id="deposit-btn" onclick="depositFromDoublons()">Deposit to Family Finance</button>
-                        <button class="btn btn-secondary" onclick="copyMyUsername()">Copy My Username</button>
-                        <a href="https://doublons-bank.vercel.app/" target="_blank" class="btn btn-secondary" style="text-decoration:none;">Open Doublons Bank</a>
-                    </div>
-                </div>
-            </div>
-
             <div id="doublons-status" style="margin-top:12px;padding:8px;border-radius:var(--radius);display:none;"></div>
         </main>
     </div>
@@ -191,46 +168,6 @@
             }
         }
 
-        async function depositFromDoublons() {
-            var amount = parseFloat(document.getElementById('doublons-deposit-amount').value);
-            var note = document.getElementById('doublons-deposit-note').value.trim();
-            if (!amount || amount <= 0) return notifyError('Enter a valid amount');
-            if (!await showConfirm('Deposit $' + amount.toFixed(2) + ' from Doublons Bank into your Family Finance account?', { confirmText: 'Deposit' })) return;
-
-            setBtnLoading('deposit-btn', true, 'Deposit to Family Finance');
-            try {
-                var result = await apiPost('/api/external/deposit', {
-                    username: currentUser,
-                    amount: amount,
-                    note: note || 'Deposit from Doublons Bank'
-                });
-                if (result.error) throw new Error(result.error);
-                showStatus('Deposited $' + amount.toFixed(2) + ' from Doublons Bank into your Family Finance account!', false);
-                document.getElementById('doublons-deposit-amount').value = '';
-                document.getElementById('doublons-deposit-note').value = '';
-                loadBalance();
-            } catch (err) {
-                showStatus(err.message || 'Deposit failed. Please try again.', true);
-            } finally {
-                setBtnLoading('deposit-btn', false, 'Deposit to Family Finance');
-            }
-        }
-
-        function copyMyUsername() {
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(currentUser).then(function() {
-                    showStatus('Username copied: ' + currentUser, false);
-                });
-            } else {
-                var ta = document.createElement('textarea');
-                ta.value = currentUser;
-                document.body.appendChild(ta);
-                ta.select();
-                document.execCommand('copy');
-                document.body.removeChild(ta);
-                showStatus('Username copied: ' + currentUser, false);
-            }
-        }
     </script>
 
     <!-- Change Password Modal -->
