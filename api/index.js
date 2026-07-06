@@ -732,6 +732,18 @@ app.post('/api/user/:username/request-money', authMiddleware, ownerOnly, async (
             date: new Date().toISOString()
         });
         await recipient.save();
+
+        // Send email notification to recipient if SMTP is configured
+        if (transporter && recipient.email) {
+            transporter.sendMail({
+                from: SMTP_FROM,
+                to: recipient.email,
+                subject: `Family Finance - ${username} requested $${parseFloat(amount).toFixed(2)}`,
+                text: `${username} has requested $${parseFloat(amount).toFixed(2)} from you.\nReason: ${description || 'Money request'}\n\nLog in to Family Finance to approve or deny this request.`,
+                html: `<p><strong>${username}</strong> has requested <strong>$${parseFloat(amount).toFixed(2)}</strong> from you.</p><p>Reason: ${sanitize(description || 'Money request')}</p><p><a href="https://family-finance.vercel.app/transfer">Click here to approve or deny</a></p>`
+            }).catch(err => console.error('Email notification error:', err.message));
+        }
+
         res.json({ success: true });
     } catch (err) {
         console.error(err.message);
@@ -1413,6 +1425,81 @@ app.get('*', (req, res) => {
         return res.status(404).json({ error: 'Not found' });
     }
     res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
+
+// ===== Encrypted Backup =====
+app.get('/api/user/:username/backup', authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const payload = JSON.stringify({
+            exportedAt: new Date().toISOString(),
+            username: user.username,
+            email: user.email,
+            transactions: user.transactions || [],
+            kids: (user.kids || []).map(k => ({
+                id: k.id, name: k.name, balance: k.balance,
+                transactions: k.transactions || []
+            })),
+            expenseItems: user.expenseItems || [],
+            scheduledPayments: user.scheduledPayments || []
+        });
+
+        const encKey = crypto.createHash('sha256').update(JWT_SECRET + ':backup:' + user.username).digest();
+        const iv = crypto.randomBytes(12);
+        const cipher = crypto.createCipheriv('aes-256-gcm', encKey, iv);
+        const encrypted = Buffer.concat([cipher.update(payload, 'utf8'), cipher.final()]);
+        const authTag = cipher.getAuthTag();
+
+        res.setHeader('Content-Disposition', `attachment; filename="ff-backup-${user.username}-${Date.now()}.json"`);
+        res.json({
+            version: 1, algorithm: 'aes-256-gcm',
+            iv: iv.toString('hex'), authTag: authTag.toString('hex'),
+            data: encrypted.toString('hex')
+        });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ===== Cross-bank self transfer (Zach FSB) =====
+app.post('/api/user/:username/crossbank-transfer', authLimiter, authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const { username } = req.params;
+        const { direction, amount, note, bankName } = req.body;
+        if (!direction || !['in', 'out'].includes(direction)) return res.status(400).json({ error: 'direction must be "in" or "out"' });
+        if (!amount || isNaN(amount) || amount <= 0 || amount > 1000000) return res.status(400).json({ error: 'Invalid amount' });
+
+        const user = await User.findOne({ username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const bank = sanitize(bankName || 'Zach FSB');
+        const desc = sanitize(note || (direction === 'out' ? `Transfer to ${bank}` : `Transfer from ${bank}`));
+
+        if (direction === 'out') {
+            const txs = user.transactions || [];
+            const bal = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+                       - txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+            if (amount > bal) return res.status(400).json({ error: 'Insufficient balance' });
+        }
+
+        if (!user.transactions) user.transactions = [];
+        user.transactions.push({
+            id: Date.now(),
+            description: `${bank}: ${desc}`,
+            amount: parseFloat(amount),
+            type: direction === 'out' ? 'expense' : 'income',
+            category: 'crossbank',
+            date: new Date().toISOString()
+        });
+        await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
 });
 
 module.exports = app;

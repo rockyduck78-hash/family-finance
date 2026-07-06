@@ -72,7 +72,8 @@
             <!-- Tabs -->
             <div class="page-tabs" role="tablist">
                 <button class="page-tab active" role="tab" aria-selected="true" onclick="switchTab('transfers', this)">&#8644; Transfers</button>
-                <button class="page-tab" role="tab" aria-selected="false" onclick="switchTab('family', this)">&#128106; Family Group</button>
+                <button class="page-tab" role="tab" aria-selected="false" onclick="switchTab('crossbank', this)">&#127974; Zach FSB</button>
+                <button class="page-tab" role="tab" aria-selected="false" onclick="switchTab('family', this)">&#128106; Family</button>
             </div>
 
             <!-- Tab: Transfers -->
@@ -182,6 +183,44 @@
                 </div>
 
             </div><!-- end tab-transfers -->
+
+            <!-- Tab: Zach FSB Cross-Bank Transfer -->
+            <div id="tab-crossbank" class="tab-panel">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">&#127974; Zach FSB</span>
+                        <span style="font-size:12px;color:var(--gray-400);">Cross-account cross-bank transfer</span>
+                    </div>
+                    <p style="font-size:13px;color:var(--gray-400);margin-bottom:16px;">Move money between your Family Finance account and your Zach FSB bank account. Both directions are recorded as transactions.</p>
+
+                    <!-- Direction toggle -->
+                    <div style="display:flex;gap:0;background:var(--gray-100);border-radius:var(--radius);padding:3px;margin-bottom:16px;">
+                        <button type="button" id="cb-out-btn" class="mode-btn active" onclick="setCBDirection('out')">&#8595; FF → Zach FSB</button>
+                        <button type="button" id="cb-in-btn" class="mode-btn" onclick="setCBDirection('in')">&#8593; Zach FSB → FF</button>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Amount ($)</label>
+                            <input type="number" id="cb-amount" step="0.01" min="0.01" placeholder="0.00">
+                        </div>
+                        <div class="form-group">
+                            <label>Note (optional)</label>
+                            <input type="text" id="cb-note" placeholder="e.g., Savings deposit">
+                        </div>
+                    </div>
+                    <button type="button" id="cb-submit-btn" class="btn btn-primary" onclick="submitCrossBank()">Transfer to Zach FSB</button>
+                </div>
+
+                <!-- Backup -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">&#128190; Encrypted Backup</span>
+                    </div>
+                    <p style="font-size:13px;color:var(--gray-400);margin-bottom:14px;">Download an encrypted backup of all your transactions and balances. The file is AES-256 encrypted — store it safely outside the app.</p>
+                    <button type="button" class="btn btn-secondary" onclick="downloadBackup()">&#8681; Download Backup</button>
+                </div>
+            </div><!-- end tab-crossbank -->
 
             <!-- Tab: Family Group -->
             <div id="tab-family" class="tab-panel">
@@ -331,6 +370,69 @@
             btn.classList.add('active');
             btn.setAttribute('aria-selected','true');
             document.getElementById('tab-' + name).classList.add('active');
+        }
+
+        // ===== Cross-bank (Zach FSB) =====
+        let cbDirection = 'out';
+
+        function setCBDirection(dir) {
+            cbDirection = dir;
+            document.getElementById('cb-out-btn').classList.toggle('active', dir === 'out');
+            document.getElementById('cb-in-btn').classList.toggle('active', dir === 'in');
+            document.getElementById('cb-submit-btn').textContent = dir === 'out' ? 'Transfer to Zach FSB' : 'Transfer to Family Finance';
+            document.getElementById('cb-submit-btn').style.background = dir === 'in' ? 'var(--green-500)' : '';
+        }
+
+        async function submitCrossBank() {
+            const amount = parseFloat(document.getElementById('cb-amount').value);
+            const note = document.getElementById('cb-note').value.trim();
+            if (!amount || amount <= 0) return notifyError('Enter a valid amount');
+            if (cbDirection === 'out' && amount > currentBalance) return notifyError('Insufficient balance');
+
+            const btn = document.getElementById('cb-submit-btn');
+            btn.disabled = true;
+            const orig = btn.textContent;
+            btn.textContent = 'Processing...';
+            try {
+                const data = await apiPost('/api/user/' + user + '/crossbank-transfer', {
+                    direction: cbDirection, amount, note, bankName: 'Zach FSB'
+                });
+                if (data.error) return notifyError(data.error);
+                notifySuccess((cbDirection === 'out' ? 'Sent ' : 'Received ') + formatCurrency(amount) + (cbDirection === 'out' ? ' to Zach FSB' : ' from Zach FSB'));
+                document.getElementById('cb-amount').value = '';
+                document.getElementById('cb-note').value = '';
+                loadData();
+            } finally {
+                btn.disabled = false;
+                btn.textContent = orig;
+            }
+        }
+
+        // ===== Encrypted backup =====
+        async function downloadBackup() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = 'Preparing...';
+            try {
+                const token = localStorage.getItem('ff-token');
+                const res = await fetch('/api/user/' + user + '/backup', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!res.ok) { notifyError('Backup failed'); return; }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'ff-backup-' + user + '-' + Date.now() + '.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                notifySuccess('Backup downloaded');
+            } catch (e) {
+                notifyError('Backup failed');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '⭳ Download Backup';
+            }
         }
 
         async function loadData() {
