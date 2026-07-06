@@ -3,6 +3,60 @@ function initUserMenu(username) {
     document.getElementById('user-avatar').textContent = username[0].toUpperCase();
     loadTheme();
     loadCustomization();
+    // Inject backup button into every page's user dropdown
+    _injectBackupButton();
+}
+
+function _injectBackupButton() {
+    const dropdown = document.querySelector('.user-dropdown');
+    if (!dropdown || dropdown.querySelector('.backup-btn')) return;
+    const divider = document.createElement('div');
+    divider.className = 'divider';
+    const btn = document.createElement('button');
+    btn.className = 'backup-btn';
+    btn.innerHTML = '&#128190; Download Backup';
+    btn.onclick = downloadBackup;
+    // Insert before the Sign Out divider (last divider)
+    const dividers = dropdown.querySelectorAll('.divider');
+    const lastDivider = dividers[dividers.length - 1];
+    if (lastDivider) {
+        dropdown.insertBefore(divider, lastDivider);
+        dropdown.insertBefore(btn, lastDivider);
+    } else {
+        dropdown.appendChild(divider);
+        dropdown.appendChild(btn);
+    }
+}
+
+async function downloadBackup() {
+    document.getElementById('user-menu').classList.remove('open');
+    const user = localStorage.getItem('currentUser');
+    const token = localStorage.getItem('ff-token');
+    if (!user || !token) return notifyError('Not logged in');
+
+    notifyInfo('Preparing backup...');
+    try {
+        const res = await fetch('/api/user/' + user + '/backup', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            return notifyError(err.error || 'Backup failed');
+        }
+        const data = await res.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'ff-backup-' + user + '-' + new Date().toISOString().slice(0, 10) + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        notifySuccess('Backup downloaded — store it somewhere safe');
+    } catch (e) {
+        notifyError('Backup failed: ' + e.message);
+    }
 }
 
 function toggleUserMenu() {
