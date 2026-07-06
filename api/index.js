@@ -1470,26 +1470,6 @@ app.post('/api/doublons/send', authLimiter, authMiddleware, async (req, res) => 
     }
 });
 
-// Page routes
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
-app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'dashboard.html')));
-app.get('/transactions', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'transactions.html')));
-app.get('/history', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'history.html')));
-app.get('/expenses', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'expenses.html')));
-app.get('/transfer', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'transfer.html')));
-app.get('/family', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'family.html')));
-app.get('/interbank', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'interbank.html')));
-app.get('/doublons', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'doublons.html')));
-app.get('/forgot-password', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'forgot-password.html')));
-
-// Catch-all for unknown routes
-app.get('*', (req, res) => {
-    if (req.path.startsWith('/api/')) {
-        return res.status(404).json({ error: 'Not found' });
-    }
-    res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
-});
-
 // ===== Encrypted Backup =====
 app.get('/api/user/:username/backup', authMiddleware, ownerOnly, async (req, res) => {
     try {
@@ -1563,6 +1543,26 @@ app.post('/api/user/:username/crossbank-transfer', authLimiter, authMiddleware, 
         console.error(err.message);
         res.status(500).json({ error: 'Server error' });
     }
+});
+
+// Page routes
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
+app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'dashboard.html')));
+app.get('/transactions', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'transactions.html')));
+app.get('/history', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'history.html')));
+app.get('/expenses', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'expenses.html')));
+app.get('/transfer', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'transfer.html')));
+app.get('/family', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'family.html')));
+app.get('/interbank', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'interbank.html')));
+app.get('/doublons', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'doublons.html')));
+app.get('/forgot-password', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'forgot-password.html')));
+
+// Catch-all for unknown routes
+app.get('*', (req, res) => {
+    if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ error: 'Not found' });
+    }
+    res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
 module.exports = app;

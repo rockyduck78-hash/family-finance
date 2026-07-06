@@ -408,33 +408,6 @@
             }
         }
 
-        // ===== Encrypted backup =====
-        async function downloadBackup() {
-            const btn = event.target;
-            btn.disabled = true;
-            btn.textContent = 'Preparing...';
-            try {
-                const token = localStorage.getItem('ff-token');
-                const res = await fetch('/api/user/' + user + '/backup', {
-                    headers: { 'Authorization': 'Bearer ' + token }
-                });
-                if (!res.ok) { notifyError('Backup failed'); return; }
-                const blob = await res.blob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'ff-backup-' + user + '-' + Date.now() + '.json';
-                a.click();
-                URL.revokeObjectURL(url);
-                notifySuccess('Backup downloaded');
-            } catch (e) {
-                notifyError('Backup failed');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = '⭳ Download Backup';
-            }
-        }
-
         async function loadData() {
             const [userData, usersData, requestsData, familyData, sentRequestsData] = await Promise.all([
                 apiGet('/api/user/' + user),
