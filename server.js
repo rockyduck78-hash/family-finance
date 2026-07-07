@@ -1844,7 +1844,7 @@ app.post('/api/external/withdraw', authLimiter, authMiddleware, async (req, res)
 
 // Doublons Bank server-side proxy — deposit into DB account
 const DBL_API = 'https://doublons-bank.vercel.app';
-const DBL_KEY = process.env.DBL_API_KEY || 'dbl_sk_h1g1zhf72wugfoby5eu8adate01uonac4632sevu';
+const DBL_KEY = process.env.DBL_API_KEY || 'dbl_sk_np0c2fe8xi6dhnlzdwsci6eo4dnsgeguf2bmf385';
 
 async function dblFetchWithCsrf(path, body) {
     const csrfRes = await fetch(DBL_API + '/api/csrf-token');

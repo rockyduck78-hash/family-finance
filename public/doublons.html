@@ -59,7 +59,7 @@
         <main class="main-content">
             <div class="page-header">
                 <h1>Doublons Bank</h1>
-                <p>Send and receive money between Family Finance and Doublons Bank</p>
+                <p>Transfer money between Family Finance and Doublons Bank</p>
             </div>
 
             <div class="card" style="margin-bottom:16px;">
@@ -69,15 +69,19 @@
                 </div>
             </div>
 
+            <!-- Direction toggle -->
+            <div style="display:flex;gap:0;background:var(--gray-100);border-radius:var(--radius);padding:3px;margin-bottom:16px;">
+                <button type="button" id="dbl-out-btn" class="mode-btn active" onclick="setDBLDirection('out')">&#8595; FF &#8594; Doublons</button>
+                <button type="button" id="dbl-in-btn" class="mode-btn" onclick="setDBLDirection('in')">&#8593; Doublons &#8594; FF</button>
+            </div>
+
             <!-- Send to Doublons Bank -->
-            <div class="card">
+            <div class="card" id="dbl-send-card">
                 <div class="card-header">
                     <span class="card-title">Send to Doublons Bank</span>
                 </div>
                 <div style="padding:16px;">
-                    <div style="background:var(--green-100);color:#14532d;border-radius:var(--radius);padding:10px 14px;font-size:13px;margin-bottom:14px;">
-                        &#10003; Transfers are processed server-side. No need to log into Doublons Bank separately.
-                    </div>
+                    <p style="margin-bottom:12px;color:var(--gray-400);">Withdraw from your Family Finance balance and deposit into a Doublons Bank account</p>
                     <div class="form-group">
                         <label>Doublons Bank Username</label>
                         <input type="text" id="doublons-to-username" placeholder="e.g., amelia">
@@ -92,7 +96,32 @@
                             <input type="text" id="doublons-note" placeholder="e.g., Savings transfer">
                         </div>
                     </div>
-                    <button class="btn btn-primary" id="send-btn" onclick="sendToDoublons()">Send to Doublons Bank</button>
+                    <button class="btn btn-primary" id="dbl-submit-btn" onclick="sendToDoublons()">Send to Doublons Bank</button>
+                </div>
+            </div>
+
+            <!-- Receive from Doublons Bank -->
+            <div class="card" id="dbl-receive-card" style="display:none;">
+                <div class="card-header">
+                    <span class="card-title">Receive from Doublons Bank</span>
+                </div>
+                <div style="padding:16px;">
+                    <p style="margin-bottom:12px;color:var(--gray-400);">Withdraw from a Doublons Bank account and deposit into your Family Finance balance</p>
+                    <div class="form-group">
+                        <label>Doublons Bank Username</label>
+                        <input type="text" id="doublons-from-username" placeholder="e.g., amelia">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Amount ($)</label>
+                            <input type="number" id="doublons-recv-amount" step="0.01" min="0.01" placeholder="0.00">
+                        </div>
+                        <div class="form-group">
+                            <label>Note (optional)</label>
+                            <input type="text" id="doublons-recv-note" placeholder="e.g., Savings transfer">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" id="dbl-recv-btn" onclick="recvFromDoublons()" style="background:var(--green-500);">Receive from Doublons Bank</button>
                 </div>
             </div>
 
@@ -109,8 +138,20 @@
         if (!currentUser || !currentToken) { window.location.href = '/'; }
         initUserMenu(currentUser);
 
-        // Doublons Bank API — server-side proxy handles auth
+        var DBL_API = 'https://doublons-bank.vercel.app';
+        var DBL_KEY = 'dbl_sk_np0c2fe8xi6dhnlzdwsci6eo4dnsgeguf2bmf385';
         var currentBalance = 0;
+        var dblDirection = 'out';
+
+        function setDBLDirection(dir) {
+            dblDirection = dir;
+            document.getElementById('dbl-out-btn').classList.toggle('active', dir === 'out');
+            document.getElementById('dbl-in-btn').classList.toggle('active', dir === 'in');
+            document.getElementById('dbl-send-card').style.display = dir === 'out' ? 'block' : 'none';
+            document.getElementById('dbl-receive-card').style.display = dir === 'in' ? 'block' : 'none';
+            document.getElementById('dbl-submit-btn').textContent = dir === 'out' ? 'Send to Doublons Bank' : 'Transfer to Doublons';
+            document.getElementById('dbl-submit-btn').style.background = dir === 'in' ? 'var(--green-500)' : '';
+        }
 
         async function loadBalance() {
             var data = await apiGet('/api/user/' + currentUser);
@@ -126,16 +167,16 @@
         function showStatus(msg, isError) {
             var el = document.getElementById('doublons-status');
             el.style.display = 'block';
-            el.style.background = isError ? '#7f1d1d' : '#14532d';
-            el.style.color = isError ? '#fecaca' : '#bbf7d0';
+            el.style.background = isError ? 'var(--red-900)' : 'var(--green-900)';
+            el.style.color = isError ? 'var(--red-200)' : 'var(--green-200)';
             el.textContent = msg;
             setTimeout(function() { el.style.display = 'none'; }, 8000);
         }
 
-        function setBtnLoading(btnId, loading, originalText) {
-            var btn = document.getElementById(btnId);
-            if (loading) { btn.disabled = true; btn.textContent = 'Processing...'; }
-            else { btn.disabled = false; btn.textContent = originalText; }
+        async function dblGetCsrf() {
+            var res = await fetch(DBL_API + '/api/csrf-token');
+            var data = await res.json();
+            return data.token;
         }
 
         async function sendToDoublons() {
@@ -145,26 +186,93 @@
             if (!toUsername) return notifyError('Enter a Doublons Bank username');
             if (!amount || amount <= 0) return notifyError('Enter a valid amount');
             if (amount > currentBalance) return notifyError('Insufficient balance. Your balance is ' + formatCurrency(currentBalance));
-            if (!await showConfirm('Send $' + amount.toFixed(2) + ' to Doublons Bank user "' + toUsername + '"?', { confirmText: 'Send' })) return;
+            if (!await showConfirm('Send $' + amount.toFixed(2) + ' from Family Finance to Doublons Bank user "' + toUsername + '"?', { confirmText: 'Send' })) return;
 
-            setBtnLoading('send-btn', true, 'Send to Doublons Bank');
+            var btn = document.getElementById('dbl-submit-btn');
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
             try {
-                var result = await apiPost('/api/doublons/send', {
-                    username: currentUser,
-                    toUsername: toUsername,
-                    amount: amount,
-                    note: note || 'Transfer to ' + toUsername + ' on Doublons Bank'
+                var ffResult = await apiPost('/api/external/withdraw', {
+                    username: currentUser, amount: amount, note: note || 'Transfer to ' + toUsername
                 });
-                if (result.error) throw new Error(result.error);
+                if (ffResult.error) throw new Error(ffResult.error);
 
-                showStatus('Sent $' + amount.toFixed(2) + ' to ' + toUsername + ' on Doublons Bank!', false);
+                var csrf = await dblGetCsrf();
+                var res = await fetch(DBL_API + '/api/external/deposit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + DBL_KEY,
+                        'x-csrf-token': csrf
+                    },
+                    body: JSON.stringify({
+                        username: toUsername,
+                        amount: amount.toFixed(2),
+                        description: note || 'Transfer from Family Finance',
+                        sender: currentUser,
+                        reference: 'ff-' + Date.now()
+                    })
+                });
+                var data = await res.json();
+                if (!res.ok) throw new Error(data.error?.message || data.error || 'Doublons Bank deposit failed');
+
+                showStatus('Sent $' + amount.toFixed(2) + ' to ' + toUsername + ' on Doublons Bank', false);
                 document.getElementById('doublons-amount').value = '';
                 document.getElementById('doublons-note').value = '';
                 loadBalance();
             } catch (err) {
-                showStatus(err.message || 'Transfer failed. Please try again.', true);
+                showStatus(err.message || 'Transfer failed', true);
             } finally {
-                setBtnLoading('send-btn', false, 'Send to Doublons Bank');
+                btn.disabled = false;
+                btn.textContent = 'Send to Doublons Bank';
+            }
+        }
+
+        async function recvFromDoublons() {
+            var fromUsername = document.getElementById('doublons-from-username').value.trim();
+            var amount = parseFloat(document.getElementById('doublons-recv-amount').value);
+            var note = document.getElementById('doublons-recv-note').value.trim();
+            if (!fromUsername) return notifyError('Enter a Doublons Bank username');
+            if (!amount || amount <= 0) return notifyError('Enter a valid amount');
+            if (!await showConfirm('Receive $' + amount.toFixed(2) + ' from Doublons Bank user "' + fromUsername + '"?', { confirmText: 'Receive' })) return;
+
+            var btn = document.getElementById('dbl-recv-btn');
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+            try {
+                var csrf = await dblGetCsrf();
+                var res = await fetch(DBL_API + '/api/external/withdraw', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + DBL_KEY,
+                        'x-csrf-token': csrf
+                    },
+                    body: JSON.stringify({
+                        username: fromUsername,
+                        amount: amount.toFixed(2),
+                        description: note || 'Transfer to Family Finance',
+                        sender: currentUser,
+                        reference: 'ff-recv-' + Date.now()
+                    })
+                });
+                var data = await res.json();
+                if (!res.ok) throw new Error(data.error?.message || data.error || 'Doublons Bank withdrawal failed');
+
+                var ffResult = await apiPost('/api/external/deposit', {
+                    username: currentUser, amount: amount, note: note || 'Received from ' + fromUsername + ' on Doublons Bank'
+                });
+                if (ffResult.error) throw new Error(ffResult.error);
+
+                showStatus('Received $' + amount.toFixed(2) + ' from ' + fromUsername + ' on Doublons Bank', false);
+                document.getElementById('doublons-recv-amount').value = '';
+                document.getElementById('doublons-recv-note').value = '';
+                loadBalance();
+            } catch (err) {
+                showStatus(err.message || 'Transfer failed', true);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Receive from Doublons Bank';
             }
         }
 
