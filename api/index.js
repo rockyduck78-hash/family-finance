@@ -1447,7 +1447,7 @@ app.post('/api/doublons/send', authLimiter, authMiddleware, async (req, res) => 
         const balance = income - expenses;
         if (amount > balance) return res.status(400).json({ error: 'Insufficient balance' });
 
-        const dblResult = await dblFetchWithCsrf('/api/external/deposit', {
+        await dblFetchWithCsrf('/api/external/deposit', {
             username: toUsername,
             amount: amount.toFixed(2),
             description: note || 'Transfer from Family Finance',
@@ -1464,6 +1464,41 @@ app.post('/api/doublons/send', authLimiter, authMiddleware, async (req, res) => 
         });
         await userDoc.save();
         res.json({ success: true, message: `Sent $${amount.toFixed(2)} to ${toUsername} on Doublons Bank` });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: err.message || 'Doublons Bank transfer failed' });
+    }
+});
+
+app.post('/api/doublons/recv', authLimiter, authMiddleware, async (req, res) => {
+    try {
+        const { username, fromUsername, amount, note } = req.body;
+        if (req.authUser !== username) {
+            return res.status(403).json({ error: 'Cannot receive on behalf of another user' });
+        }
+        if (!fromUsername) return res.status(400).json({ error: 'Doublons Bank username required' });
+        if (!amount || amount <= 0) return res.status(400).json({ error: 'Invalid amount' });
+
+        const userDoc = await User.findOne({ username });
+        if (!userDoc) return res.status(404).json({ error: 'User not found' });
+
+        await dblFetchWithCsrf('/api/external/withdraw', {
+            username: fromUsername,
+            amount: amount.toFixed(2),
+            description: note || 'Transfer to Family Finance',
+            sender: username,
+            reference: 'ff-recv-' + Date.now()
+        });
+
+        if (!userDoc.transactions) userDoc.transactions = [];
+        const now = new Date().toISOString();
+        userDoc.transactions.push({
+            id: Date.now(),
+            description: `Doublons Bank Deposit: ${note || 'Received from ' + fromUsername}`,
+            amount, type: 'income', category: 'external', date: now
+        });
+        await userDoc.save();
+        res.json({ success: true, message: `Received $${amount.toFixed(2)} from ${fromUsername} on Doublons Bank` });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: err.message || 'Doublons Bank transfer failed' });

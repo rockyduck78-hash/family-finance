@@ -149,8 +149,6 @@
             document.getElementById('dbl-in-btn').classList.toggle('active', dir === 'in');
             document.getElementById('dbl-send-card').style.display = dir === 'out' ? 'block' : 'none';
             document.getElementById('dbl-receive-card').style.display = dir === 'in' ? 'block' : 'none';
-            document.getElementById('dbl-submit-btn').textContent = dir === 'out' ? 'Send to Doublons Bank' : 'Transfer to Doublons';
-            document.getElementById('dbl-submit-btn').style.background = dir === 'in' ? 'var(--green-500)' : '';
         }
 
         async function loadBalance() {
@@ -173,12 +171,6 @@
             setTimeout(function() { el.style.display = 'none'; }, 8000);
         }
 
-        async function dblGetCsrf() {
-            var res = await fetch(DBL_API + '/api/csrf-token');
-            var data = await res.json();
-            return data.token;
-        }
-
         async function sendToDoublons() {
             var toUsername = document.getElementById('doublons-to-username').value.trim();
             var amount = parseFloat(document.getElementById('doublons-amount').value);
@@ -192,29 +184,13 @@
             btn.disabled = true;
             btn.textContent = 'Processing...';
             try {
-                var ffResult = await apiPost('/api/external/withdraw', {
-                    username: currentUser, amount: amount, note: note || 'Transfer to ' + toUsername
+                var result = await apiPost('/api/doublons/send', {
+                    username: currentUser,
+                    toUsername: toUsername,
+                    amount: amount,
+                    note: note || 'Transfer to ' + toUsername
                 });
-                if (ffResult.error) throw new Error(ffResult.error);
-
-                var csrf = await dblGetCsrf();
-                var res = await fetch(DBL_API + '/api/external/deposit', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + DBL_KEY,
-                        'x-csrf-token': csrf
-                    },
-                    body: JSON.stringify({
-                        username: toUsername,
-                        amount: amount.toFixed(2),
-                        description: note || 'Transfer from Family Finance',
-                        sender: currentUser,
-                        reference: 'ff-' + Date.now()
-                    })
-                });
-                var data = await res.json();
-                if (!res.ok) throw new Error(data.error?.message || data.error || 'Doublons Bank deposit failed');
+                if (result.error) throw new Error(result.error);
 
                 showStatus('Sent $' + amount.toFixed(2) + ' to ' + toUsername + ' on Doublons Bank', false);
                 document.getElementById('doublons-amount').value = '';
@@ -240,29 +216,13 @@
             btn.disabled = true;
             btn.textContent = 'Processing...';
             try {
-                var csrf = await dblGetCsrf();
-                var res = await fetch(DBL_API + '/api/external/withdraw', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + DBL_KEY,
-                        'x-csrf-token': csrf
-                    },
-                    body: JSON.stringify({
-                        username: fromUsername,
-                        amount: amount.toFixed(2),
-                        description: note || 'Transfer to Family Finance',
-                        sender: currentUser,
-                        reference: 'ff-recv-' + Date.now()
-                    })
+                var result = await apiPost('/api/doublons/recv', {
+                    username: currentUser,
+                    fromUsername: fromUsername,
+                    amount: amount,
+                    note: note || 'Received from ' + fromUsername
                 });
-                var data = await res.json();
-                if (!res.ok) throw new Error(data.error?.message || data.error || 'Doublons Bank withdrawal failed');
-
-                var ffResult = await apiPost('/api/external/deposit', {
-                    username: currentUser, amount: amount, note: note || 'Received from ' + fromUsername + ' on Doublons Bank'
-                });
-                if (ffResult.error) throw new Error(ffResult.error);
+                if (result.error) throw new Error(result.error);
 
                 showStatus('Received $' + amount.toFixed(2) + ' from ' + fromUsername + ' on Doublons Bank', false);
                 document.getElementById('doublons-recv-amount').value = '';
