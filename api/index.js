@@ -70,10 +70,23 @@ async function connectMongo() {
     return mongoPromise;
 }
 
+// MongoDB reconnect handlers
+if (mongoose.connection) {
+    mongoose.connection.on('disconnected', () => {
+        mongoReady = false;
+        console.log('MongoDB disconnected');
+        mongoPromise = null;
+    });
+    mongoose.connection.on('connected', () => {
+        mongoReady = true;
+        console.log('MongoDB connected event fired');
+    });
+}
+
 // Schemas
 const userSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
-    email: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     resetCode: { type: String, default: null },
     resetCodeExpiry: { type: Date, default: null },
@@ -170,6 +183,9 @@ app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+// Trust first proxy (needed for rate limiting behind Vercel's reverse proxy)
+app.set('trust proxy', 1);
+
 app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
@@ -206,6 +222,15 @@ function isValidPassword(p) {
 function sanitize(str) {
     if (typeof str !== 'string') return '';
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+}
+
+// Generate unique ID for transactions (avoids Date.now() collisions)
+let lastId = 0;
+function uniqueId() {
+    const now = Date.now();
+    if (now <= lastId) lastId++;
+    else lastId = now;
+    return lastId;
 }
 
 function generateTrustedDeviceToken(username) {
@@ -281,7 +306,7 @@ app.post('/api/login', authLimiter, async (req, res) => {
     try {
         const { username, password } = req.body;
         const user = await User.findOne({ username });
-        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!user) return res.status(401).json({ error: 'Invalid username or password' });
 
         let passwordMatch = false;
         try { passwordMatch = await bcrypt.compare(password, user.password); } catch (e) {}
@@ -291,7 +316,7 @@ app.post('/api/login', authLimiter, async (req, res) => {
             await user.save();
         }
 
-        if (!passwordMatch) return res.status(401).json({ error: 'Incorrect password' });
+        if (!passwordMatch) return res.status(401).json({ error: 'Invalid username or password' });
 
         const trustedDeviceToken = req.headers['x-trusted-device'];
         if (user.twoFactorEnabled && trustedDeviceToken) {
@@ -354,7 +379,7 @@ app.put('/api/user/:username/transactions', authMiddleware, ownerOnly, async (re
         res.json({ success: true });
     } catch (err) {
         console.error('Save transactions error:', err.message);
-        res.status(500).json({ error: 'Failed to save: ' + err.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
@@ -378,7 +403,7 @@ app.post('/api/user/:username/expense-items', authMiddleware, ownerOnly, async (
             return res.status(400).json({ error: 'Category, name, quantity, and price are required' });
         }
         user.expenseItems.push({
-            id: Date.now(),
+            id: uniqueId(),
             category,
             name: String(name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
             quantity: Number(quantity),
@@ -422,7 +447,15 @@ app.put('/api/user/:username/kids', authMiddleware, ownerOnly, async (req, res) 
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
-        user.kids = req.body.kids;
+        const kids = req.body.kids;
+        if (!Array.isArray(kids)) return res.status(400).json({ error: 'Kids must be an array' });
+        // Validate each kid object
+        for (const kid of kids) {
+            if (!kid.id || !kid.name || typeof kid.name !== 'string') {
+                return res.status(400).json({ error: 'Invalid kid data: each kid must have id and name' });
+            }
+        }
+        user.kids = kids;
         await user.save();
         res.json({ success: true });
     } catch (err) {
@@ -443,7 +476,7 @@ app.post('/api/user/:username/kids/:kidId/request-money', authMiddleware, ownerO
 
         if (!user.pendingApprovals) user.pendingApprovals = [];
         user.pendingApprovals.push({
-            id: Date.now(), kidId: kid.id, kidName: kid.name, type: 'add',
+            id: uniqueId(), kidId: kid.id, kidName: kid.name, type: 'add',
             amount: parseFloat(amount), description: sanitize(description || 'Request'),
             date: new Date().toISOString()
         });
@@ -468,7 +501,7 @@ app.post('/api/user/:username/kids/:kidId/request-spend', authMiddleware, ownerO
 
         if (!user.pendingApprovals) user.pendingApprovals = [];
         user.pendingApprovals.push({
-            id: Date.now(), kidId: kid.id, kidName: kid.name, type: 'spend',
+            id: uniqueId(), kidId: kid.id, kidName: kid.name, type: 'spend',
             amount: parseFloat(amount), description: sanitize(description || 'Spend'),
             date: new Date().toISOString()
         });
@@ -503,8 +536,8 @@ app.post('/api/user/:username/approve/:approvalId', authMiddleware, ownerOnly, a
             if (approval.amount > (income - expenses)) return res.status(400).json({ error: 'Insufficient parent balance' });
 
             user.kids[kidIndex].balance += approval.amount;
-            user.kids[kidIndex].transactions.push({ id: Date.now(), description: approval.description, amount: approval.amount, type: 'income', date: now });
-            user.transactions.push({ id: Date.now() + 2, description: `Given to ${approval.kidName}: ${approval.description}`, amount: approval.amount, type: 'expense', category: 'kids', date: now });
+            user.kids[kidIndex].transactions.push({ id: uniqueId(), description: approval.description, amount: approval.amount, type: 'income', date: now });
+            user.transactions.push({ id: uniqueId(), description: `Given to ${approval.kidName}: ${approval.description}`, amount: approval.amount, type: 'expense', category: 'kids', date: now });
         } else if (approval.type === 'kid-transfer') {
             const fromKid = user.kids.find(k => k.id === approval.fromKidId);
             const toKid = user.kids.find(k => k.id === approval.toKidId);
@@ -515,9 +548,9 @@ app.post('/api/user/:username/approve/:approvalId', authMiddleware, ownerOnly, a
             if (!toKid.transactions) toKid.transactions = [];
 
             fromKid.balance -= approval.amount;
-            fromKid.transactions.push({ id: Date.now(), description: `Sent to ${toKid.name}: ${approval.description}`, amount: approval.amount, type: 'expense', date: now });
+            fromKid.transactions.push({ id: uniqueId(), description: `Sent to ${toKid.name}: ${approval.description}`, amount: approval.amount, type: 'expense', date: now });
             toKid.balance += approval.amount;
-            toKid.transactions.push({ id: Date.now() + 1, description: `Received from ${fromKid.name}: ${approval.description}`, amount: approval.amount, type: 'income', date: now });
+            toKid.transactions.push({ id: uniqueId(), description: `Received from ${fromKid.name}: ${approval.description}`, amount: approval.amount, type: 'income', date: now });
         } else {
             const kidIndex = user.kids.findIndex(k => k.id === approval.kidId);
             if (kidIndex === -1) return res.status(404).json({ error: 'Kid not found' });
@@ -525,8 +558,8 @@ app.post('/api/user/:username/approve/:approvalId', authMiddleware, ownerOnly, a
             if (approval.amount > user.kids[kidIndex].balance) return res.status(400).json({ error: 'Insufficient kid balance' });
 
             user.kids[kidIndex].balance -= approval.amount;
-            user.kids[kidIndex].transactions.push({ id: Date.now(), description: approval.description, amount: approval.amount, type: 'expense', date: now });
-            user.transactions.push({ id: Date.now() + 2, description: `Received from ${approval.kidName}: ${approval.description}`, amount: approval.amount, type: 'income', category: 'kids', date: now });
+            user.kids[kidIndex].transactions.push({ id: uniqueId(), description: approval.description, amount: approval.amount, type: 'expense', date: now });
+            user.transactions.push({ id: uniqueId(), description: `Received from ${approval.kidName}: ${approval.description}`, amount: approval.amount, type: 'income', category: 'kids', date: now });
         }
 
         user.pendingApprovals.splice(approvalIndex, 1);
@@ -570,7 +603,7 @@ app.post('/api/user/:username/kids/:kidId/transfer-to-kid', authMiddleware, owne
 
         if (!user.pendingApprovals) user.pendingApprovals = [];
         user.pendingApprovals.push({
-            id: Date.now(), type: 'kid-transfer',
+            id: uniqueId(), type: 'kid-transfer',
             fromKidId: fromKid.id, fromKidName: fromKid.name,
             toKidId: toKid.id, toKidName: toKid.name,
             amount: parseFloat(amount), description: sanitize(description || `${fromKid.name} → ${toKid.name}`),
@@ -604,16 +637,19 @@ app.post('/api/user/:username/scheduled-payments', authMiddleware, ownerOnly, as
         if (!user) return res.status(404).json({ error: 'User not found' });
         const kid = user.kids.find(k => k.id === parseInt(kidId));
         if (!kid) return res.status(404).json({ error: 'Kid not found' });
+        const validFrequencies = ['daily', 'weekly', 'biweekly', 'monthly'];
+        if (!validFrequencies.includes(frequency)) return res.status(400).json({ error: 'Frequency must be daily, weekly, biweekly, or monthly' });
 
         if (!user.scheduledPayments) user.scheduledPayments = [];
-        user.scheduledPayments.push({
-            id: Date.now(), kidId: kid.id, kidName: kid.name,
+        const payment = {
+            id: uniqueId(), kidId: kid.id, kidName: kid.name,
             amount: parseFloat(amount), description: sanitize(description || 'Allowance'),
             frequency, dayOfWeek: parseInt(dayOfWeek) || 0, dayOfMonth: parseInt(dayOfMonth) || 1,
             lastPaid: null, active: true, created: new Date().toISOString()
-        });
+        };
+        user.scheduledPayments.push(payment);
         await user.save();
-        res.json({ success: true });
+        res.json({ success: true, payment });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Server error' });
@@ -678,7 +714,7 @@ app.post('/api/transfer', authLimiter, authMiddleware, async (req, res) => {
                 if (!isOwner) {
                     if (!group.pendingTransactions) group.pendingTransactions = [];
                     group.pendingTransactions.push({
-                        id: Date.now(), fromUsername: from, toUsername: to,
+                        id: uniqueId(), fromUsername: from, toUsername: to,
                         amount: amount, description: sanitize(note || 'Transfer'),
                         category: 'transfer', date: new Date().toISOString()
                     });
@@ -692,8 +728,8 @@ app.post('/api/transfer', authLimiter, authMiddleware, async (req, res) => {
         if (!sender.transactions) sender.transactions = [];
         if (!recipient.transactions) recipient.transactions = [];
 
-        sender.transactions.push({ id: Date.now(), description: `Sent to ${to}: ${sanitize(note) || 'Transfer'}`, amount, type: 'expense', category: 'transfer', date: now });
-        recipient.transactions.push({ id: Date.now() + 1, description: `Received from ${from}: ${sanitize(note) || 'Transfer'}`, amount, type: 'income', category: 'transfer', date: now });
+        sender.transactions.push({ id: uniqueId(), description: `Sent to ${to}: ${sanitize(note) || 'Transfer'}`, amount, type: 'expense', category: 'transfer', date: now });
+        recipient.transactions.push({ id: uniqueId(), description: `Received from ${from}: ${sanitize(note) || 'Transfer'}`, amount, type: 'income', category: 'transfer', date: now });
 
         await sender.save();
         await recipient.save();
@@ -727,7 +763,7 @@ app.post('/api/user/:username/request-money', authMiddleware, ownerOnly, async (
 
         if (!recipient.pendingRequests) recipient.pendingRequests = [];
         recipient.pendingRequests.push({
-            id: Date.now(), fromUsername: username, toUsername: toUsername,
+            id: uniqueId(), fromUsername: username, toUsername: toUsername,
             amount: parseFloat(amount), description: sanitize(description || 'Money request'),
             date: new Date().toISOString()
         });
@@ -762,6 +798,27 @@ app.get('/api/user/:username/requests', authMiddleware, ownerOnly, async (req, r
     }
 });
 
+// Get pending requests sent BY a user (stored on recipients' accounts)
+app.get('/api/user/:username/sent-requests', authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const fromUsername = req.params.username;
+        const usersWithRequests = await User.find(
+            { 'pendingRequests.fromUsername': fromUsername },
+            { username: 1, pendingRequests: 1 }
+        );
+        const sent = [];
+        usersWithRequests.forEach(u => {
+            (u.pendingRequests || [])
+                .filter(r => r.fromUsername === fromUsername)
+                .forEach(r => sent.push({ ...r.toObject(), toUsername: u.username }));
+        });
+        res.json(sent);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 app.post('/api/user/:username/approve-request/:requestId', authMiddleware, ownerOnly, async (req, res) => {
     try {
         const { username, requestId } = req.params;
@@ -783,8 +840,8 @@ app.post('/api/user/:username/approve-request/:requestId', authMiddleware, owner
         if (!sender.transactions) sender.transactions = [];
         if (!user.transactions) user.transactions = [];
 
-        sender.transactions.push({ id: Date.now(), description: `Sent to ${username}: ${request.description}`, amount: request.amount, type: 'expense', category: 'transfer', date: now });
-        user.transactions.push({ id: Date.now() + 1, description: `Received from ${request.fromUsername}: ${request.description}`, amount: request.amount, type: 'income', category: 'transfer', date: now });
+        sender.transactions.push({ id: uniqueId(), description: `Sent to ${username}: ${request.description}`, amount: request.amount, type: 'expense', category: 'transfer', date: now });
+        user.transactions.push({ id: uniqueId(), description: `Received from ${request.fromUsername}: ${request.description}`, amount: request.amount, type: 'income', category: 'transfer', date: now });
 
         user.pendingRequests.splice(idx, 1);
         await sender.save();
@@ -880,7 +937,13 @@ app.put('/api/user/:username/settings', authMiddleware, ownerOnly, async (req, r
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
-        user.settings = req.body;
+        // Validate settings shape - only allow known keys
+        const allowedKeys = ['theme', 'density', 'fontSize', 'fontFamily', 'cardStyle', 'accentColor', 'glowMode', 'animatedBg', 'swirlBg', 'statsLayout', 'showStats', 'showCharts', 'bgColor', 'bgBrightness', 'sectionOrder'];
+        const sanitized = {};
+        for (const key of allowedKeys) {
+            if (req.body[key] !== undefined) sanitized[key] = req.body[key];
+        }
+        user.settings = sanitized;
         await user.save();
         res.json({ success: true });
     } catch (err) {
@@ -1089,8 +1152,8 @@ app.post('/api/family/approve/:txId', authMiddleware, async (req, res) => {
         if (!sender.transactions) sender.transactions = [];
         if (!recipient.transactions) recipient.transactions = [];
 
-        sender.transactions.push({ id: Date.now(), description: tx.description, amount: tx.amount, type: 'expense', category: tx.category || 'transfer', date: now });
-        recipient.transactions.push({ id: Date.now() + 1, description: tx.description, amount: tx.amount, type: 'income', category: tx.category || 'transfer', date: now });
+        sender.transactions.push({ id: uniqueId(), description: tx.description, amount: tx.amount, type: 'expense', category: tx.category || 'transfer', date: now });
+        recipient.transactions.push({ id: uniqueId(), description: tx.description, amount: tx.amount, type: 'income', category: tx.category || 'transfer', date: now });
 
         await sender.save();
         await recipient.save();
@@ -1237,11 +1300,11 @@ app.post('/api/user/:username/2fa/setup', authMiddleware, ownerOnly, async (req,
         if (!user) return res.status(404).json({ error: 'User not found' });
         if (user.twoFactorEnabled) return res.status(400).json({ error: '2FA is already enabled' });
 
-        const secret = generateSecret();
-        const otpauth = generateURI({ secret, issuer: 'Family Finance', label: user.email });
+        const secret = otplib.generateSecret();
+        const otpauth = otplib.generateURI({ secret, issuer: 'Family Finance', label: user.email });
         user.twoFactorSecret = secret;
         await user.save();
-        const qrCodeUrl = await toDataURL(otpauth);
+        const qrCodeUrl = await QRCode.toDataURL(otpauth);
         res.json({ success: true, secret, qrCode: qrCodeUrl });
     } catch (err) {
         console.error(err.message);
@@ -1258,7 +1321,7 @@ app.post('/api/user/:username/2fa/verify', authMiddleware, ownerOnly, async (req
         if (!user.twoFactorSecret) return res.status(400).json({ error: 'No 2FA setup in progress' });
 
         const { code } = req.body;
-        const result = verifySync({ token: code, secret: user.twoFactorSecret });
+        const result = otplib.verifySync({ token: code, secret: user.twoFactorSecret });
         const isValid = result && result.valid;
         if (!isValid) return res.status(401).json({ error: 'Invalid verification code' });
 
@@ -1285,7 +1348,7 @@ app.post('/api/user/:username/2fa/disable', authMiddleware, ownerOnly, async (re
         if (!passwordMatch) return res.status(401).json({ error: 'Incorrect password' });
 
         if (code) {
-            const result = verifySync({ token: code, secret: user.twoFactorSecret });
+            const result = otplib.verifySync({ token: code, secret: user.twoFactorSecret });
             const isValid = result && result.valid;
             if (!isValid) return res.status(401).json({ error: 'Invalid 2FA code' });
         } else {
@@ -1317,7 +1380,7 @@ app.post('/api/user/:username/2fa/login', async (req, res) => {
         if (!user.twoFactorEnabled) return res.status(400).json({ error: '2FA is not enabled' });
 
         const { code } = req.body;
-        const result = verifySync({ token: code, secret: user.twoFactorSecret });
+        const result = otplib.verifySync({ token: code, secret: user.twoFactorSecret });
         const isValid = result && result.valid;
         if (!isValid) return res.status(401).json({ error: 'Invalid 2FA code' });
 
@@ -1358,7 +1421,7 @@ app.post('/api/external/deposit', authLimiter, authMiddleware, async (req, res) 
         if (!userDoc.transactions) userDoc.transactions = [];
         const now = new Date().toISOString();
         userDoc.transactions.push({
-            id: Date.now(),
+            id: uniqueId(),
             description: `Doublons Bank Deposit: ${sanitize(note) || 'External transfer in'}`,
             amount, type: 'income', category: 'external', date: now
         });
@@ -1395,7 +1458,7 @@ app.post('/api/external/withdraw', authLimiter, authMiddleware, async (req, res)
         if (!userDoc.transactions) userDoc.transactions = [];
         const now = new Date().toISOString();
         userDoc.transactions.push({
-            id: Date.now(),
+            id: uniqueId(),
             description: `Doublons Bank Withdrawal: ${sanitize(note) || 'External transfer out'}`,
             amount, type: 'expense', category: 'external', date: now
         });
@@ -1409,7 +1472,8 @@ app.post('/api/external/withdraw', authLimiter, authMiddleware, async (req, res)
 
 // Doublons Bank server-side proxy — deposit into DB account
 const DBL_API = 'https://doublons-bank.vercel.app';
-const DBL_KEY = process.env.DBL_API_KEY || 'dbl_sk_np0c2fe8xi6dhnlzdwsci6eo4dnsgeguf2bmf385';
+const DBL_KEY = process.env.DBL_API_KEY;
+if (!DBL_KEY) console.warn('WARNING: DBL_API_KEY not set. Doublons Bank integration disabled.');
 
 async function dblFetchWithCsrf(path, body) {
     const csrfRes = await fetch(DBL_API + '/api/csrf-token');
@@ -1431,6 +1495,7 @@ async function dblFetchWithCsrf(path, body) {
 
 app.post('/api/doublons/send', authLimiter, authMiddleware, async (req, res) => {
     try {
+        if (!DBL_KEY) return res.status(503).json({ error: 'Doublons Bank integration not configured' });
         const { username, toUsername, amount, note } = req.body;
         if (req.authUser !== username) {
             return res.status(403).json({ error: 'Cannot send on behalf of another user' });
@@ -1458,7 +1523,7 @@ app.post('/api/doublons/send', authLimiter, authMiddleware, async (req, res) => 
         if (!userDoc.transactions) userDoc.transactions = [];
         const now = new Date().toISOString();
         userDoc.transactions.push({
-            id: Date.now(),
+            id: uniqueId(),
             description: `Doublons Bank Withdrawal: ${note || 'Transfer to ' + toUsername}`,
             amount, type: 'expense', category: 'external', date: now
         });
@@ -1507,6 +1572,39 @@ app.get('/api/user/:username/backup', authMiddleware, ownerOnly, async (req, res
     }
 });
 
+// ===== Bank of Philip proxy (server-side, keeps API key secret) =====
+const BOP_API = process.env.BOP_API_URL || 'https://bank-of-philip-130515044033.us-west2.run.app';
+const BOP_KEY = process.env.BOP_API_KEY;
+
+app.post('/api/bop/deposit', authLimiter, authMiddleware, async (req, res) => {
+    try {
+        if (!BOP_KEY) return res.status(503).json({ error: 'Bank of Philip integration not configured' });
+        const { toUsername, amount, note } = req.body;
+        if (!toUsername) return res.status(400).json({ error: 'Bank of Philip username required' });
+        if (!amount || amount <= 0) return res.status(400).json({ error: 'Invalid amount' });
+
+        const bopRes = await fetch(BOP_API + '/api/deposit', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + BOP_KEY
+            },
+            body: JSON.stringify({
+                username: toUsername,
+                amount,
+                sender: req.authUser,
+                description: note || 'Transfer from Family Finance'
+            })
+        });
+        const data = await bopRes.json().catch(() => ({}));
+        if (!bopRes.ok) throw new Error(data.error || data.message || 'Bank of Philip deposit failed');
+        res.json({ success: true });
+    } catch (err) {
+        console.error('BOP deposit error:', err.message);
+        res.status(500).json({ error: err.message || 'Bank of Philip transfer failed' });
+    }
+});
+
 // ===== Cross-bank self transfer (Zach FSB) =====
 app.post('/api/user/:username/crossbank-transfer', authLimiter, authMiddleware, ownerOnly, async (req, res) => {
     try {
@@ -1530,7 +1628,7 @@ app.post('/api/user/:username/crossbank-transfer', authLimiter, authMiddleware, 
 
         if (!user.transactions) user.transactions = [];
         user.transactions.push({
-            id: Date.now(),
+            id: uniqueId(),
             description: `${bank}: ${desc}`,
             amount: parseFloat(amount),
             type: direction === 'out' ? 'expense' : 'income',
@@ -1542,6 +1640,96 @@ app.post('/api/user/:username/crossbank-transfer', authLimiter, authMiddleware, 
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ===== Scheduled Payments Processing (Vercel Cron) =====
+async function processScheduledPayments() {
+    if (!mongoReady || mongoose.connection.readyState !== 1) return;
+    try {
+        const users = await User.find({});
+        const now = new Date();
+
+        for (const user of users) {
+            if (!user.scheduledPayments || !user.kids) continue;
+            let changed = false;
+
+            for (const sp of user.scheduledPayments) {
+                if (!sp.active) continue;
+                if (!sp.lastPaid) {
+                    sp.lastPaid = now.toISOString();
+                    changed = true;
+                    continue;
+                }
+
+                const lastPaid = new Date(sp.lastPaid);
+                const diffDays = Math.floor((now - lastPaid) / (1000 * 60 * 60 * 24));
+                let shouldPay = false;
+
+                if (sp.frequency === 'daily' && diffDays >= 1) {
+                    shouldPay = true;
+                } else if (sp.frequency === 'weekly' && diffDays >= 7) {
+                    shouldPay = true;
+                } else if (sp.frequency === 'biweekly' && diffDays >= 14) {
+                    shouldPay = true;
+                } else if (sp.frequency === 'monthly' && (now.getDate() >= sp.dayOfMonth && now.getDate() <= sp.dayOfMonth + 1)) {
+                    const monthDiff = (now.getFullYear() - lastPaid.getFullYear()) * 12 + now.getMonth() - lastPaid.getMonth();
+                    if (monthDiff >= 1 || (monthDiff === 0 && now.getDate() === sp.dayOfMonth)) {
+                        shouldPay = true;
+                    }
+                }
+
+                if (shouldPay) {
+                    const kid = user.kids.find(k => k.id === sp.kidId);
+                    if (kid) {
+                        if (!user.transactions) user.transactions = [];
+                        if (!kid.transactions) kid.transactions = [];
+
+                        user.transactions.push({
+                            id: uniqueId(),
+                            description: `Auto: ${sp.description} → ${sp.kidName}`,
+                            amount: sp.amount,
+                            type: 'expense',
+                            category: 'kids',
+                            date: now.toISOString()
+                        });
+
+                        kid.balance += sp.amount;
+                        kid.transactions.push({
+                            id: uniqueId(),
+                            description: sp.description,
+                            amount: sp.amount,
+                            type: 'income',
+                            date: now.toISOString()
+                        });
+
+                        sp.lastPaid = now.toISOString();
+                        changed = true;
+                    }
+                }
+            }
+
+            if (changed) await user.save();
+        }
+    } catch (err) {
+        console.error('Error processing scheduled payments:', err);
+    }
+}
+
+// Vercel Cron endpoint - protected by CRON_SECRET
+app.get('/api/cron/process-payments', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+        await connectMongo();
+        await processScheduledPayments();
+        res.json({ success: true, processed: new Date().toISOString() });
+    } catch (err) {
+        console.error('Cron error:', err.message);
+        res.status(500).json({ error: 'Cron failed' });
     }
 });
 
@@ -1562,7 +1750,14 @@ app.get('*', (req, res) => {
     if (req.path.startsWith('/api/')) {
         return res.status(404).json({ error: 'Not found' });
     }
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
+
+// Express error handling middleware
+app.use((err, req, res, next) => {
+    console.error('Unhandled error:', err.message);
+    res.status(500).json({ error: 'Server error' });
 });
 
 module.exports = app;

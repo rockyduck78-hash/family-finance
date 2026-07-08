@@ -106,8 +106,6 @@
         if (!user) window.location.href = '/';
         initUserMenu(user);
 
-        const BOP_API = 'https://bank-of-philip-130515044033.us-west2.run.app';
-        const BOP_API_KEY = 'sov_sk_exec_zach_9QQ8Z06FV6MWDDS6';
         let currentBalance = 0;
 
         async function loadBalance() {
@@ -146,21 +144,10 @@
                 });
                 if (ffResult.error) throw new Error(ffResult.error);
 
-                const res = await fetch(BOP_API + '/api/deposit', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + BOP_API_KEY
-                    },
-                    body: JSON.stringify({
-                        username: toUsername,
-                        amount: amount,
-                        sender: user,
-                        description: note || `Transfer from Family Finance`
-                    })
+                const bopResult = await apiPost('/api/bop/deposit', {
+                    toUsername, amount, note: note || `Transfer from Family Finance`
                 });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || data.message || 'Bank of Philip deposit failed');
+                if (bopResult.error) throw new Error(bopResult.error);
 
                 bopShowStatus(`Sent $${amount.toFixed(2)} to ${toUsername} on Bank of Philip`, false);
                 document.getElementById('bop-amount').value = '';

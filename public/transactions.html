@@ -198,6 +198,7 @@
         document.getElementById('transaction-form').addEventListener('submit', async (e) => {
             e.preventDefault();
 
+            const btn = e.target.querySelector('button[type="submit"]');
             const newTx = {
                 id: Date.now(),
                 description: document.getElementById('description').value,
@@ -209,12 +210,9 @@
 
             if (newTx.type === 'expense' && newTx.amount > currentBalance) {
                 notifyError('Insufficient balance. Your balance is ' + formatCurrency(currentBalance));
-                btn.disabled = false;
-                btn.textContent = 'Add Transaction';
                 return;
             }
 
-            const btn = e.target.querySelector('button[type="submit"]');
             btn.disabled = true;
             btn.textContent = 'Saving...';
 
