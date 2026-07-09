@@ -697,6 +697,19 @@ app.post('/api/transfer', authLimiter, authMiddleware, async (req, res) => {
 
         await sender.save();
         await recipient.save();
+
+        // Email notification to recipient
+        if (transporter && recipient.email) {
+            const amt = parseFloat(amount).toFixed(2);
+            transporter.sendMail({
+                from: SMTP_FROM,
+                to: recipient.email,
+                subject: `Family Finance - ${from} sent you $${amt}`,
+                text: `${from} has sent you $${amt}.${note ? '\nNote: ' + sanitize(note) : ''}\n\nLog in to Family Finance to view your updated balance.`,
+                html: `<p><strong>${from}</strong> has sent you <strong>$${amt}</strong>.</p>${note ? '<p>Note: ' + sanitize(note) + '</p>' : ''}<p><a href="https://family-finance-olive-nine.vercel.app/dashboard">Log in to view your updated balance</a></p>`
+            }).catch(err => console.error('Email notification error:', err.message));
+        }
+
         res.json({ success: true });
     } catch (err) {
         console.error(err.message);
@@ -789,6 +802,19 @@ app.post('/api/user/:username/approve-request/:requestId', authMiddleware, owner
         user.pendingRequests.splice(idx, 1);
         await sender.save();
         await user.save();
+
+        // Email notification to requester
+        if (transporter && sender.email) {
+            const amt = parseFloat(request.amount).toFixed(2);
+            transporter.sendMail({
+                from: SMTP_FROM,
+                to: sender.email,
+                subject: `Family Finance - ${username} approved your $${amt} request`,
+                text: `${username} has approved your money request of $${amt}.\nReason: ${request.description}\n\nThe funds have been transferred to ${username}'s account.`,
+                html: `<p><strong>${username}</strong> has approved your money request of <strong>$${amt}</strong>.</p><p>Reason: ${request.description}</p><p>The funds have been transferred to ${username}'s account.</p><p><a href="https://family-finance-olive-nine.vercel.app/dashboard">Log in to view your balance</a></p>`
+            }).catch(err => console.error('Email notification error:', err.message));
+        }
+
         res.json({ success: true });
     } catch (err) {
         console.error(err.message);
