@@ -1211,6 +1211,42 @@ app.post('/api/user/:username/change-username', authMiddleware, ownerOnly, async
     }
 });
 
+// Delete account
+app.delete('/api/user/:username', authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const { username } = req.params;
+        const { password } = req.body;
+        const user = await User.findOne({ username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!password) return res.status(400).json({ error: 'Password required to delete account' });
+
+        let passwordMatch = false;
+        try { passwordMatch = await bcrypt.compare(password, user.password); } catch (e) {}
+        if (!passwordMatch && user.password === password) passwordMatch = true;
+        if (!passwordMatch) return res.status(401).json({ error: 'Incorrect password' });
+
+        // Remove from family group if in one
+        if (user.familyGroupId) {
+            const group = await FamilyGroup.findById(user.familyGroupId);
+            if (group) {
+                const isOwner = group.ownerId.toString() === user._id.toString();
+                group.members = group.members.filter(m => m !== username);
+                await group.save();
+                if (isOwner && group.members.length === 0) {
+                    await FamilyGroup.findByIdAndDelete(group._id);
+                }
+            }
+            user.familyGroupId = null;
+        }
+
+        await User.findOneAndDelete({ username });
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Settings (theme)
 app.get('/api/user/:username/settings', authMiddleware, ownerOnly, async (req, res) => {
     try {

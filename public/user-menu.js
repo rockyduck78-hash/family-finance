@@ -3,8 +3,9 @@ function initUserMenu(username) {
     document.getElementById('user-avatar').textContent = username[0].toUpperCase();
     loadTheme();
     loadCustomization();
-    // Inject backup button into every page's user dropdown
     _injectBackupButton();
+    _injectDeleteAccountButton();
+    _injectDeleteAccountModal();
 }
 
 function _injectBackupButton() {
@@ -16,7 +17,6 @@ function _injectBackupButton() {
     btn.className = 'backup-btn';
     btn.innerHTML = '&#128190; Download Backup';
     btn.onclick = downloadBackup;
-    // Insert before the Sign Out divider (last divider)
     const dividers = dropdown.querySelectorAll('.divider');
     const lastDivider = dividers[dividers.length - 1];
     if (lastDivider) {
@@ -26,6 +26,48 @@ function _injectBackupButton() {
         dropdown.appendChild(divider);
         dropdown.appendChild(btn);
     }
+}
+
+function _injectDeleteAccountButton() {
+    const dropdown = document.querySelector('.user-dropdown');
+    if (!dropdown || dropdown.querySelector('.delete-account-btn')) return;
+    const divider = document.createElement('div');
+    divider.className = 'divider';
+    const btn = document.createElement('button');
+    btn.className = 'delete-account-btn danger';
+    btn.innerHTML = '&#128465; Delete Account';
+    btn.onclick = showDeleteAccount;
+    const signOutBtn = dropdown.querySelector('.danger');
+    if (signOutBtn) {
+        dropdown.insertBefore(divider, signOutBtn);
+        dropdown.insertBefore(btn, signOutBtn);
+    } else {
+        dropdown.appendChild(divider);
+        dropdown.appendChild(btn);
+    }
+}
+
+function _injectDeleteAccountModal() {
+    if (document.getElementById('delete-account-modal')) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'delete-account-modal';
+    overlay.innerHTML = `
+        <div class="modal">
+            <h3>&#128465; Delete Account</h3>
+            <p style="color:var(--red-500,#ef4444);font-weight:600;margin-bottom:12px;">This action is permanent and cannot be undone.</p>
+            <p style="font-size:14px;color:var(--gray-500,#6b7280);margin-bottom:16px;">All your data including transactions, kids, settings, and family group membership will be permanently deleted.</p>
+            <div class="form-group">
+                <label>Enter your password to confirm</label>
+                <input type="password" id="delete-account-password" placeholder="Your password">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeDeleteAccountModal()">Cancel</button>
+                <button class="btn btn-primary" style="background:var(--red-500,#ef4444);border-color:var(--red-500,#ef4444);" onclick="submitDeleteAccount()">Delete Account</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
 }
 
 async function downloadBackup() {
@@ -321,6 +363,36 @@ async function submitChangeUn() {
 }
 
 function logout() {
+    clearUser();
+    window.location.href = '/';
+}
+
+// Delete Account
+function showDeleteAccount() {
+    document.getElementById('user-menu').classList.remove('open');
+    document.getElementById('delete-account-modal').classList.add('active');
+    document.getElementById('delete-account-password').value = '';
+}
+
+function closeDeleteAccountModal() {
+    document.getElementById('delete-account-modal').classList.remove('active');
+}
+
+async function submitDeleteAccount() {
+    const user = localStorage.getItem('currentUser');
+    const password = document.getElementById('delete-account-password').value;
+    if (!password) return notifyError('Enter your password to confirm');
+
+    const confirmed = await showConfirm('Are you absolutely sure? This will permanently delete your account and all data.', { confirmText: 'Delete Forever', danger: true });
+    if (!confirmed) return;
+
+    const data = await apiDelete('/api/user/' + user, {
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+    });
+    if (data.error) return notifyError(data.error);
+    notifySuccess('Account deleted');
+    closeDeleteAccountModal();
     clearUser();
     window.location.href = '/';
 }

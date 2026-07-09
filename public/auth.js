@@ -92,11 +92,12 @@ async function apiPut(url, data) {
     return res.json();
 }
 
-async function apiDelete(url) {
+async function apiDelete(url, options = {}) {
     const res = await fetch(API + url, {
         method: 'DELETE',
         credentials: 'same-origin',
-        headers: authHeaders()
+        headers: { ...authHeaders(), ...options.headers },
+        body: options.body
     });
     if (res.status === 401) { clearUser(); window.location.href = '/'; return { error: 'Session expired' }; }
     return res.json();
