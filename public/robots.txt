@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://family-finance-olive-nine.vercel.app/sitemap.xml
