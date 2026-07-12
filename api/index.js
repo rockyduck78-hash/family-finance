@@ -181,7 +181,7 @@ app.use((req, res, next) => {
 
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 15,
+    max: 30,
     message: { error: 'Too many attempts. Please try again later.' },
     standardHeaders: true,
     legacyHeaders: false
