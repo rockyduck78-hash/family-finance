@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <title>Contact Us - Family Finance</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="landing-page">
+        <nav class="landing-nav">
+            <a href="/" class="logo">
+                <div class="logo-icon">$</div>
+                <span class="logo-text">Family Finance</span>
+            </a>
+            <div class="landing-nav-links">
+                <a href="/">Home</a>
+                <a href="/privacy">Privacy</a>
+                <a href="/terms">Terms</a>
+            </div>
+        </nav>
+
+        <section style="max-width: 800px; margin: 100px auto; padding: 40px; background: rgba(255,255,255,0.05); border-radius: var(--radius-lg); position: relative; z-index: 1;">
+            <h1 style="color: var(--white); margin-bottom: 24px;">Contact Us</h1>
+            <p style="color: var(--gray-300); margin-bottom: 24px; line-height: 1.8;">
+                Have questions, feedback, or need support? We're here to help. Choose the method that works best for you.
+            </p>
+
+            <div style="display: grid; gap: 24px; margin-bottom: 32px;">
+                <div style="background: rgba(255,255,255,0.08); padding: 24px; border-radius: var(--radius);">
+                    <h3 style="color: var(--white); margin-bottom: 12px;">📧 Email Support</h3>
+                    <p style="color: var(--gray-300); margin-bottom: 12px;">
+                        For general inquiries, support requests, or feedback:
+                    </p>
+                    <a href="mailto:support@familyfinance.app" style="color: var(--blue-400); display: inline-block; padding: 8px 16px; background: var(--blue-600); border-radius: var(--radius); text-decoration: none; color: white; font-weight: 500;">
+                        support@familyfinance.app
+                    </a>
+                </div>
+
+                <div style="background: rgba(255,255,255,0.08); padding: 24px; border-radius: var(--radius);">
+                    <h3 style="color: var(--white); margin-bottom: 12px;">🚨 Security Issues</h3>
+                    <p style="color: var(--gray-300); margin-bottom: 12px;">
+                        Found a security vulnerability? Please report it responsibly:
+                    </p>
+                    <a href="mailto:security@familyfinance.app" style="color: var(--blue-400); display: inline-block; padding: 8px 16px; background: var(--red-500); border-radius: var(--radius); text-decoration: none; color: white; font-weight: 500;">
+                        security@familyfinance.app
+                    </a>
+                </div>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.08); padding: 24px; border-radius: var(--radius); margin-bottom: 24px;">
+                <h3 style="color: var(--white); margin-bottom: 12px;">💬 Send us a Message</h3>
+                <form id="contact-form" style="margin-top: 16px;">
+                    <div style="margin-bottom: 16px;">
+                        <label for="contact-name" style="display: block; color: var(--gray-300); margin-bottom: 8px;">Your Name</label>
+                        <input type="text" id="contact-name" required style="width: 100%; padding: 12px; border-radius: var(--radius); border: 1px solid var(--gray-600); background: var(--gray-800); color: var(--white);">
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <label for="contact-email" style="display: block; color: var(--gray-300); margin-bottom: 8px;">Email Address</label>
+                        <input type="email" id="contact-email" required style="width: 100%; padding: 12px; border-radius: var(--radius); border: 1px solid var(--gray-600); background: var(--gray-800); color: var(--white);">
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <label for="contact-subject" style="display: block; color: var(--gray-300); margin-bottom: 8px;">Subject</label>
+                        <select id="contact-subject" required style="width: 100%; padding: 12px; border-radius: var(--radius); border: 1px solid var(--gray-600); background: var(--gray-800); color: var(--white);">
+                            <option value="">Select a topic</option>
+                            <option value="general">General Inquiry</option>
+                            <option value="support">Technical Support</option>
+                            <option value="feedback">Feedback</option>
+                            <option value="bug">Bug Report</option>
+                            <option value="feature">Feature Request</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <label for="contact-message" style="display: block; color: var(--gray-300); margin-bottom: 8px;">Message</label>
+                        <textarea id="contact-message" rows="5" required style="width: 100%; padding: 12px; border-radius: var(--radius); border: 1px solid var(--gray-600); background: var(--gray-800); color: var(--white); resize: vertical;"></textarea>
+                    </div>
+                    <button type="submit" style="background: var(--blue-600); color: white; padding: 12px 24px; border: none; border-radius: var(--radius); cursor: pointer; font-weight: 600;">
+                        Send Message
+                    </button>
+                </form>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.08); padding: 24px; border-radius: var(--radius);">
+                <h3 style="color: var(--white); margin-bottom: 12px;">📋 Common Questions</h3>
+                <div style="color: var(--gray-300); line-height: 1.8;">
+                    <p><strong style="color: var(--white);">How do I reset my password?</strong><br>
+                    Visit the <a href="/forgot-password" style="color: var(--blue-400);">forgot password page</a> to reset your password using your email.</p>
+                    
+                    <p><strong style="color: var(--white);">How do I enable 2FA?</strong><br>
+                    Go to your dashboard, click on your username, and select "2FA Security" from the menu.</p>
+                    
+                    <p><strong style="color: var(--white);">Is my data secure?</strong><br>
+                    Yes! We use industry-standard encryption, bcrypt password hashing, and regular security audits. See our <a href="/privacy" style="color: var(--blue-400);">Privacy Policy</a> for details.</p>
+                </div>
+            </div>
+        </section>
+
+        <footer class="landing-footer">
+            <p>&copy; 2026 Family Finance. Secure family financial management.</p>
+            <p><a href="/privacy">Privacy Policy</a> | <a href="/terms">Terms of Service</a> | <a href="/contact">Contact</a></p>
+        </footer>
+    </div>
+
+    <script>
+        document.getElementById('contact-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('contact-name').value;
+            const email = document.getElementById('contact-email').value;
+            const subject = document.getElementById('contact-subject').value;
+            const message = document.getElementById('contact-message').value;
+            
+            const mailtoLink = `mailto:support@familyfinance.app?subject=${encodeURIComponent('Family Finance: ' + subject)}&body=${encodeURIComponent('Name: ' + name + '\nEmail: ' + email + '\n\n' + message)}`;
+            window.location.href = mailtoLink;
+            
+            alert('Your email client will open with the message pre-filled. Please send it to complete your inquiry.');
+            this.reset();
+        });
+    </script>
+</body>
+</html>
