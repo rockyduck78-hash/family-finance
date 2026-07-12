@@ -152,7 +152,8 @@ const userSchema = new mongoose.Schema({
         date: { type: String }
     }], default: [] },
     familyGroupId: { type: mongoose.Schema.Types.ObjectId, default: null },
-    settings: { type: mongoose.Schema.Types.Mixed, default: {} }
+    settings: { type: mongoose.Schema.Types.Mixed, default: {} },
+    apiKey: { type: String, unique: true, sparse: true, default: null }
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);
@@ -222,6 +223,10 @@ function isValidPassword(p) {
 function sanitize(str) {
     if (typeof str !== 'string') return '';
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+}
+
+function generateApiKey() {
+    return 'ff_sk_' + crypto.randomBytes(24).toString('hex');
 }
 
 // Generate a trusted device token (30-day JWT)
@@ -304,11 +309,13 @@ app.post('/api/register', authLimiter, async (req, res) => {
         }
         
         const hashedPassword = await bcrypt.hash(password, 10);
+        const apiKey = generateApiKey();
 
         await User.create({
             username,
             password: hashedPassword,
             email,
+            apiKey,
             transactions: [],
             kids: [],
             pendingApprovals: [],
@@ -1905,9 +1912,8 @@ app.post('/api/external/withdraw', authLimiter, authMiddleware, async (req, res)
 
 // Doublons Bank server-side proxy — deposit into DB account
 const DBL_API = 'https://doublons-bank.vercel.app';
-const DBL_KEY = process.env.DBL_API_KEY || 'dbl_sk_np0c2fe8xi6dhnlzdwsci6eo4dnsgeguf2bmf385';
 
-async function dblFetchWithCsrf(path, body) {
+async function dblFetchWithCsrf(path, body, apiKey) {
     const csrfRes = await fetch(DBL_API + '/api/csrf-token');
     const csrfData = await csrfRes.json();
     const token = csrfData.token;
@@ -1915,7 +1921,7 @@ async function dblFetchWithCsrf(path, body) {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + DBL_KEY,
+            'Authorization': 'Bearer ' + apiKey,
             'x-csrf-token': token
         },
         body: JSON.stringify(body)
@@ -1943,13 +1949,18 @@ app.post('/api/doublons/send', authLimiter, authMiddleware, async (req, res) => 
         const balance = income - expenses;
         if (amount > balance) return res.status(400).json({ error: 'Insufficient balance' });
 
+        if (!userDoc.apiKey) {
+            userDoc.apiKey = generateApiKey();
+            await userDoc.save();
+        }
+
         const dblResult = await dblFetchWithCsrf('/api/external/deposit', {
             username: toUsername,
             amount: amount.toFixed(2),
             description: note || 'Transfer from Family Finance',
             sender: username,
             reference: 'ff-' + Date.now()
-        });
+        }, userDoc.apiKey);
 
         if (!userDoc.transactions) userDoc.transactions = [];
         const now = new Date().toISOString();
@@ -2078,6 +2089,92 @@ app.get('/doublons', (req, res) => {
 app.get('/forgot-password', (req, res) => {
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(__dirname, 'public', 'forgot-password.html'));
+});
+
+// ===== API Key Management =====
+app.get('/api/user/:username/apikey', authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!user.apiKey) {
+            user.apiKey = generateApiKey();
+            await user.save();
+        }
+        res.json({ apiKey: user.apiKey });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/user/:username/apikey/regenerate', authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        user.apiKey = generateApiKey();
+        await user.save();
+        res.json({ apiKey: user.apiKey });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ===== Bank of Philip server-side proxy =====
+const BOP_API = 'https://bank-of-philip-130515044033.us-west2.run.app';
+
+app.post('/api/bop/send', authLimiter, authMiddleware, async (req, res) => {
+    try {
+        const { username, toUsername, amount, note } = req.body;
+        if (req.authUser !== username) {
+            return res.status(403).json({ error: 'Cannot send on behalf of another user' });
+        }
+        if (!toUsername) return res.status(400).json({ error: 'Bank of Philip username required' });
+        if (!amount || amount <= 0) return res.status(400).json({ error: 'Invalid amount' });
+
+        const userDoc = await User.findOne({ username });
+        if (!userDoc) return res.status(404).json({ error: 'User not found' });
+
+        const txs = userDoc.transactions || [];
+        const income = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+        const expenses = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+        const balance = income - expenses;
+        if (amount > balance) return res.status(400).json({ error: 'Insufficient balance' });
+
+        if (!userDoc.apiKey) {
+            userDoc.apiKey = generateApiKey();
+            await userDoc.save();
+        }
+
+        const bopRes = await fetch(BOP_API + '/api/deposit', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + userDoc.apiKey
+            },
+            body: JSON.stringify({
+                username: toUsername,
+                amount: amount,
+                sender: username,
+                description: note || 'Transfer from Family Finance'
+            })
+        });
+        const bopData = await bopRes.json().catch(() => ({}));
+        if (!bopRes.ok) throw new Error(bopData.error || bopData.message || 'Bank of Philip deposit failed');
+
+        if (!userDoc.transactions) userDoc.transactions = [];
+        const now = new Date().toISOString();
+        userDoc.transactions.push({
+            id: Date.now(),
+            description: `Bank of Philip Withdrawal: ${note || 'Transfer to ' + toUsername}`,
+            amount, type: 'expense', category: 'external', date: now
+        });
+        await userDoc.save();
+        res.json({ success: true, message: `Sent $${amount.toFixed(2)} to ${toUsername} on Bank of Philip` });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: err.message || 'Bank of Philip transfer failed' });
+    }
 });
 
 // Health check for Render

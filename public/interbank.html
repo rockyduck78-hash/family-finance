@@ -110,8 +110,6 @@
         if (!user) window.location.href = '/';
         initUserMenu(user);
 
-        const BOP_API = 'https://bank-of-philip-130515044033.us-west2.run.app';
-        const BOP_API_KEY = 'sov_sk_exec_zach_9QQ8Z06FV6MWDDS6';
         let currentBalance = 0;
 
         async function loadBalance() {
@@ -145,26 +143,10 @@
             if (!await showConfirm(`Send $${amount.toFixed(2)} from Family Finance to Bank of Philip user "${toUsername}"?`, { confirmText: 'Send' })) return;
 
             try {
-                const ffResult = await apiPost('/api/external/withdraw', {
-                    username: user, amount, note: note || `Transfer to ${toUsername}`
+                const result = await apiPost('/api/bop/send', {
+                    username: user, toUsername, amount, note: note || `Transfer to ${toUsername}`
                 });
-                if (ffResult.error) throw new Error(ffResult.error);
-
-                const res = await fetch(BOP_API + '/api/deposit', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + BOP_API_KEY
-                    },
-                    body: JSON.stringify({
-                        username: toUsername,
-                        amount: amount,
-                        sender: user,
-                        description: note || `Transfer from Family Finance`
-                    })
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || data.message || 'Bank of Philip deposit failed');
+                if (result.error) throw new Error(result.error);
 
                 bopShowStatus(`Sent $${amount.toFixed(2)} to ${toUsername} on Bank of Philip`, false);
                 document.getElementById('bop-amount').value = '';
