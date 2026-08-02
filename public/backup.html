@@ -109,60 +109,64 @@
     <script src="/user-menu.js"></script>
     <script>
         const user = localStorage.getItem('currentUser');
-        if (!user) window.location.href = '/';
+        if (!user) { window.location.href = '/'; throw new Error('Not logged in'); }
         initUserMenu(user);
 
         let allTransactions = [];
 
         async function loadBackup() {
-            const data = await apiGet('/api/user/' + user);
-            if (data.error) return notifyError(data.error);
+            try {
+                const data = await apiGet('/api/user/' + user);
+                if (data.error) return notifyError(data.error);
 
-            const txs = data.transactions || [];
-            allTransactions = txs;
-            const balance = data.balance || 0;
+                const txs = data.transactions || [];
+                allTransactions = txs;
+                const balance = data.balance || 0;
 
-            const totalIncome = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-            const totalExpenses = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+                const totalIncome = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+                const totalExpenses = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
 
-            document.getElementById('nav-balance-amount').textContent = formatCurrency(balance);
-            document.getElementById('stat-balance').textContent = formatCurrency(balance);
-            document.getElementById('stat-income').textContent = formatCurrency(totalIncome);
-            document.getElementById('stat-expenses').textContent = formatCurrency(totalExpenses);
-            document.getElementById('stat-count').textContent = txs.length;
+                document.getElementById('nav-balance-amount').textContent = formatCurrency(balance);
+                document.getElementById('stat-balance').textContent = formatCurrency(balance);
+                document.getElementById('stat-income').textContent = formatCurrency(totalIncome);
+                document.getElementById('stat-expenses').textContent = formatCurrency(totalExpenses);
+                document.getElementById('stat-count').textContent = txs.length;
 
-            const summary = document.getElementById('account-summary');
-            summary.innerHTML = `
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:8px 0;">
-                    <div><span style="color:var(--gray-400);font-size:13px;">Username</span><br><strong>${escapeHtml(user)}</strong></div>
-                    <div><span style="color:var(--gray-400);font-size:13px;">Member Since</span><br><strong>${txs.length ? new Date(txs[txs.length - 1].date).toLocaleDateString() : 'N/A'}</strong></div>
-                    <div><span style="color:var(--gray-400);font-size:13px;">Last Transaction</span><br><strong>${txs.length ? new Date(txs[0].date).toLocaleDateString() : 'N/A'}</strong></div>
-                    <div><span style="color:var(--gray-400);font-size:13px;">Total Transactions</span><br><strong>${txs.length}</strong></div>
-                    <div><span style="color:var(--gray-400);font-size:13px;">Kids Accounts</span><br><strong>${(data.kids || []).length}</strong></div>
-                    <div><span style="color:var(--gray-400);font-size:13px;">Scheduled Payments</span><br><strong>${(data.scheduledPayments || []).filter(p => p.active).length}</strong></div>
-                </div>
-            `;
+                const summary = document.getElementById('account-summary');
+                summary.innerHTML = `
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:8px 0;">
+                        <div><span style="color:var(--gray-400);font-size:13px;">Username</span><br><strong>${escapeHtml(user)}</strong></div>
+                        <div><span style="color:var(--gray-400);font-size:13px;">Member Since</span><br><strong>${txs.length ? new Date(txs[txs.length - 1].date).toLocaleDateString() : 'N/A'}</strong></div>
+                        <div><span style="color:var(--gray-400);font-size:13px;">Last Transaction</span><br><strong>${txs.length ? new Date(txs[0].date).toLocaleDateString() : 'N/A'}</strong></div>
+                        <div><span style="color:var(--gray-400);font-size:13px;">Total Transactions</span><br><strong>${txs.length}</strong></div>
+                        <div><span style="color:var(--gray-400);font-size:13px;">Kids Accounts</span><br><strong>${(data.kids || []).length}</strong></div>
+                        <div><span style="color:var(--gray-400);font-size:13px;">Scheduled Payments</span><br><strong>${(data.scheduledPayments || []).filter(p => p.active).length}</strong></div>
+                    </div>
+                `;
 
-            const list = document.getElementById('history-list');
-            if (txs.length === 0) {
-                list.innerHTML = '<div class="empty-state"><span class="icon">&#128221;</span><p>No transactions yet</p></div>';
-                return;
-            }
-            const sorted = [...txs].sort((a, b) => new Date(b.date) - new Date(a.date));
-            list.innerHTML = sorted.map(t => `
-                <div class="transaction-item">
-                    <div class="transaction-left">
-                        <div class="transaction-icon">${t.type === 'income' ? '&#8593;' : '&#8595;'}</div>
-                        <div class="transaction-info">
-                            <h4>${escapeHtml(t.description)}</h4>
-                            <span>${escapeHtml(t.category)} &bull; ${new Date(t.date).toLocaleDateString()}</span>
+                const list = document.getElementById('history-list');
+                if (txs.length === 0) {
+                    list.innerHTML = '<div class="empty-state"><span class="icon">&#128221;</span><p>No transactions yet</p></div>';
+                    return;
+                }
+                const sorted = [...txs].sort((a, b) => new Date(b.date) - new Date(a.date));
+                list.innerHTML = sorted.map(t => `
+                    <div class="transaction-item">
+                        <div class="transaction-left">
+                            <div class="transaction-icon">${t.type === 'income' ? '&#8593;' : '&#8595;'}</div>
+                            <div class="transaction-info">
+                                <h4>${escapeHtml(t.description)}</h4>
+                                <span>${escapeHtml(t.category)} &bull; ${new Date(t.date).toLocaleDateString()}</span>
+                            </div>
+                        </div>
+                        <div class="transaction-right">
+                            <span class="transaction-amount ${escapeHtml(t.type)}">${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}</span>
                         </div>
                     </div>
-                    <div class="transaction-right">
-                        <span class="transaction-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}</span>
-                    </div>
-                </div>
-            `).join('');
+                `).join('');
+            } catch (err) {
+                notifyError('Failed to load backup data');
+            }
         }
 
         function exportCSV() {
@@ -171,9 +175,9 @@
             const rows = allTransactions
                 .sort((a, b) => new Date(a.date) - new Date(b.date))
                 .map(t => [
-                    new Date(t.date).toLocaleDateString(),
-                    t.type,
-                    t.category,
+                    '"' + new Date(t.date).toLocaleDateString() + '"',
+                    '"' + t.type + '"',
+                    '"' + (t.category || '') + '"',
                     '"' + (t.description || '').replace(/"/g, '""') + '"',
                     t.type === 'income' ? t.amount : -t.amount
                 ]);

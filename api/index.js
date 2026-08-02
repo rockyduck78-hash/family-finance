@@ -143,11 +143,18 @@ const userSchema = new mongoose.Schema({
         date: { type: String }
     }], default: [] },
     familyGroupId: { type: mongoose.Schema.Types.ObjectId, default: null },
-    settings: { type: mongoose.Schema.Types.Mixed, default: {} },
-    apiKey: { type: String, unique: true, sparse: true, default: null }
+    settings: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: true });
 
 const User = mongoose.models.User || mongoose.model('User', userSchema);
+
+const apiKeySchema = new mongoose.Schema({
+    key: { type: String, required: true, unique: true },
+    username: { type: String, required: true, unique: true },
+    createdAt: { type: Date, default: Date.now }
+});
+
+const ApiKey = mongoose.models.ApiKey || mongoose.model('ApiKey', apiKeySchema);
 
 const familyGroupSchema = new mongoose.Schema({
     name: { type: String, required: true },
@@ -272,8 +279,9 @@ app.post('/api/register', authLimiter, async (req, res) => {
         if (emailExists) return res.status(400).json({ error: 'Email already registered' });
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const apiKey = generateApiKey();
-        await User.create({ username, password: hashedPassword, email, apiKey, transactions: [], kids: [], pendingApprovals: [], scheduledPayments: [], settings: {} });
+        const apiKeyValue = generateApiKey();
+        await User.create({ username, password: hashedPassword, email, transactions: [], kids: [], pendingApprovals: [], scheduledPayments: [], settings: {} });
+        await ApiKey.create({ key: apiKeyValue, username });
 
         const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
         res.json({ success: true, token });
@@ -1415,11 +1423,12 @@ app.get('/api/user/:username/apikey', authMiddleware, ownerOnly, async (req, res
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
-        if (!user.apiKey) {
-            user.apiKey = generateApiKey();
-            await user.save();
+        let record = await ApiKey.findOne({ username: req.params.username });
+        if (!record) {
+            const newKey = generateApiKey();
+            record = await ApiKey.create({ key: newKey, username: req.params.username });
         }
-        res.json({ apiKey: user.apiKey });
+        res.json({ apiKey: record.key });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Server error' });
@@ -1430,9 +1439,13 @@ app.post('/api/user/:username/apikey/regenerate', authMiddleware, ownerOnly, asy
     try {
         const user = await User.findOne({ username: req.params.username });
         if (!user) return res.status(404).json({ error: 'User not found' });
-        user.apiKey = generateApiKey();
-        await user.save();
-        res.json({ apiKey: user.apiKey });
+        const newKey = generateApiKey();
+        await ApiKey.findOneAndUpdate(
+            { username: req.params.username },
+            { key: newKey },
+            { upsert: true, new: true }
+        );
+        res.json({ apiKey: newKey });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Server error' });
@@ -1460,16 +1473,17 @@ app.post('/api/bop/send', authLimiter, authMiddleware, async (req, res) => {
         const balance = income - expenses;
         if (amount > balance) return res.status(400).json({ error: 'Insufficient balance' });
 
-        if (!userDoc.apiKey) {
-            userDoc.apiKey = generateApiKey();
-            await userDoc.save();
+        let apiKeyRecord = await ApiKey.findOne({ username });
+        if (!apiKeyRecord) {
+            const newKey = generateApiKey();
+            apiKeyRecord = await ApiKey.create({ key: newKey, username });
         }
 
         const bopRes = await fetch(BOP_API + '/api/deposit', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + userDoc.apiKey
+                'Authorization': 'Bearer ' + apiKeyRecord.key
             },
             body: JSON.stringify({
                 username: toUsername,
@@ -1600,9 +1614,10 @@ app.post('/api/doublons/send', authLimiter, authMiddleware, async (req, res) => 
         const balance = income - expenses;
         if (amount > balance) return res.status(400).json({ error: 'Insufficient balance' });
 
-        if (!userDoc.apiKey) {
-            userDoc.apiKey = generateApiKey();
-            await userDoc.save();
+        let apiKeyRecord = await ApiKey.findOne({ username });
+        if (!apiKeyRecord) {
+            const newKey = generateApiKey();
+            apiKeyRecord = await ApiKey.create({ key: newKey, username });
         }
 
         await dblFetchWithCsrf('/api/external/deposit', {
@@ -1611,7 +1626,7 @@ app.post('/api/doublons/send', authLimiter, authMiddleware, async (req, res) => 
             description: note || 'Transfer from Family Finance',
             sender: username,
             reference: 'ff-' + Date.now()
-        }, userDoc.apiKey);
+        }, apiKeyRecord.key);
 
         if (!userDoc.transactions) userDoc.transactions = [];
         const now = new Date().toISOString();

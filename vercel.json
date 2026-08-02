@@ -25,6 +25,7 @@
     { "source": "/interbank", "destination": "/api/index.js" },
     { "source": "/doublons", "destination": "/api/index.js" },
     { "source": "/forgot-password", "destination": "/api/index.js" },
+    { "source": "/backup", "destination": "/api/index.js" },
     { "source": "/health", "destination": "/api/index.js" }
   ]
 }
