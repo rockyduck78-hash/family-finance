@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="description" content="Family Finance - Backup overview of your account and transaction history.">
+    <meta name="theme-color" content="#0060a9">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <title>Backup - Family Finance</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="app-layout">
+        <nav class="topnav">
+            <a href="/dashboard" class="topnav-brand">
+                <div class="brand-icon">$</div>
+                <span class="brand-text">Family Finance</span>
+            </a>
+            <div class="topnav-balance" id="nav-balance">
+                <span class="balance-label">Balance</span>
+                <span id="nav-balance-amount">$0.00</span>
+            </div>
+            <div class="topnav-nav">
+                <a href="/dashboard"><span class="nav-icon">&#9632;</span> <span class="nav-label">Dashboard</span></a>
+                <a href="/transactions"><span class="nav-icon">&#9655;</span> <span class="nav-label">Transactions</span></a>
+                <a href="/history"><span class="nav-icon">&#128221;</span> <span class="nav-label">History</span></a>
+                <a href="/transfer"><span class="nav-icon">&#8644;</span> <span class="nav-label">Transfer</span></a>
+                <a href="/family"><span class="nav-icon">&#128106;</span> <span class="nav-label">Family</span></a>
+                <a href="/interbank"><span class="nav-icon">&#127974;</span> <span class="nav-label">Bank of Philip</span></a>
+                <a href="/doublons"><span class="nav-icon">&#128176;</span> <span class="nav-label">Doublons Bank</span></a>
+            </div>
+            <div class="topnav-right">
+                <div class="topnav-user" id="user-menu">
+                    <button class="user-menu-btn" onclick="toggleUserMenu()">
+                        <div class="topnav-avatar" id="user-avatar"></div>
+                        <span class="topnav-username" id="user-display"></span>
+                        <span class="menu-arrow">&#9662;</span>
+                    </button>
+                    <div class="user-dropdown">
+                        <button onclick="showChangePassword()">&#128274; Change Password</button>
+                        <button onclick="showChangeUsername()">&#9998; Change Username</button>
+                        <button onclick="show2FASetup()">&#128272; 2FA Security</button>
+                        <button onclick="forgetDevice()">&#128466; Forget This Device</button>
+                        <div class="divider"></div>
+                        <button onclick="showCustomize()">&#9881; Customize</button>
+                        <div class="divider"></div>
+                        <div style="padding:8px 16px 4px;font-size:12px;font-weight:600;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.05em;">Theme</div>
+                        <div class="theme-options">
+                            <button class="theme-btn" data-theme="light" onclick="setTheme('light')"></button>
+                            <button class="theme-btn" data-theme="dark" onclick="setTheme('dark')"></button>
+                            <button class="theme-btn" data-theme="blue" onclick="setTheme('blue')"></button>
+                        </div>
+                        <div class="divider"></div>
+                        <button class="danger" onclick="logout()">&#10140; Sign Out</button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1>&#128190; Backup Overview</h1>
+                <p>Your complete account summary and transaction history</p>
+            </div>
+
+            <div class="stats-grid" id="backup-stats">
+                <div class="stat-card">
+                    <div class="stat-label">Current Balance</div>
+                    <div class="stat-value" id="stat-balance">$0.00</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Income</div>
+                    <div class="stat-value income" id="stat-income">$0.00</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Expenses</div>
+                    <div class="stat-value expense" id="stat-expenses">$0.00</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Transactions</div>
+                    <div class="stat-value" id="stat-count">0</div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:20px;">
+                <div class="card-header">
+                    <span class="card-title">Account Summary</span>
+                </div>
+                <div id="account-summary" style="padding:0 4px;">
+                    <p style="color:var(--gray-400);">Loading account data...</p>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:20px;">
+                <div class="card-header">
+                    <span class="card-title">All Transactions</span>
+                    <button class="btn btn-secondary" onclick="exportCSV()">&#128229; Download CSV</button>
+                </div>
+                <div class="transaction-list" id="history-list">
+                    <div class="empty-state"><span class="icon">&#128221;</span><p>No transactions yet</p></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/auth.js"></script>
+    <script src="/notifications.js"></script>
+    <script src="/user-menu.js"></script>
+    <script>
+        const user = localStorage.getItem('currentUser');
+        if (!user) window.location.href = '/';
+        initUserMenu(user);
+
+        let allTransactions = [];
+
+        async function loadBackup() {
+            const data = await apiGet('/api/user/' + user);
+            if (data.error) return notifyError(data.error);
+
+            const txs = data.transactions || [];
+            allTransactions = txs;
+            const balance = data.balance || 0;
+
+            const totalIncome = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+            const totalExpenses = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+
+            document.getElementById('nav-balance-amount').textContent = formatCurrency(balance);
+            document.getElementById('stat-balance').textContent = formatCurrency(balance);
+            document.getElementById('stat-income').textContent = formatCurrency(totalIncome);
+            document.getElementById('stat-expenses').textContent = formatCurrency(totalExpenses);
+            document.getElementById('stat-count').textContent = txs.length;
+
+            const summary = document.getElementById('account-summary');
+            summary.innerHTML = `
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:8px 0;">
+                    <div><span style="color:var(--gray-400);font-size:13px;">Username</span><br><strong>${escapeHtml(user)}</strong></div>
+                    <div><span style="color:var(--gray-400);font-size:13px;">Member Since</span><br><strong>${txs.length ? new Date(txs[txs.length - 1].date).toLocaleDateString() : 'N/A'}</strong></div>
+                    <div><span style="color:var(--gray-400);font-size:13px;">Last Transaction</span><br><strong>${txs.length ? new Date(txs[0].date).toLocaleDateString() : 'N/A'}</strong></div>
+                    <div><span style="color:var(--gray-400);font-size:13px;">Total Transactions</span><br><strong>${txs.length}</strong></div>
+                    <div><span style="color:var(--gray-400);font-size:13px;">Kids Accounts</span><br><strong>${(data.kids || []).length}</strong></div>
+                    <div><span style="color:var(--gray-400);font-size:13px;">Scheduled Payments</span><br><strong>${(data.scheduledPayments || []).filter(p => p.active).length}</strong></div>
+                </div>
+            `;
+
+            const list = document.getElementById('history-list');
+            if (txs.length === 0) {
+                list.innerHTML = '<div class="empty-state"><span class="icon">&#128221;</span><p>No transactions yet</p></div>';
+                return;
+            }
+            const sorted = [...txs].sort((a, b) => new Date(b.date) - new Date(a.date));
+            list.innerHTML = sorted.map(t => `
+                <div class="transaction-item">
+                    <div class="transaction-left">
+                        <div class="transaction-icon">${t.type === 'income' ? '&#8593;' : '&#8595;'}</div>
+                        <div class="transaction-info">
+                            <h4>${escapeHtml(t.description)}</h4>
+                            <span>${escapeHtml(t.category)} &bull; ${new Date(t.date).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+                    <div class="transaction-right">
+                        <span class="transaction-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function exportCSV() {
+            if (!allTransactions.length) return notifyError('No transactions to export');
+            const headers = ['Date', 'Type', 'Category', 'Description', 'Amount'];
+            const rows = allTransactions
+                .sort((a, b) => new Date(a.date) - new Date(b.date))
+                .map(t => [
+                    new Date(t.date).toLocaleDateString(),
+                    t.type,
+                    t.category,
+                    '"' + (t.description || '').replace(/"/g, '""') + '"',
+                    t.type === 'income' ? t.amount : -t.amount
+                ]);
+            const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'family-finance-backup-' + user + '-' + new Date().toISOString().slice(0, 10) + '.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+            notifySuccess('Backup downloaded as CSV');
+        }
+
+        loadBackup();
+    </script>
+
+    <!-- Change Password Modal -->
+    <div class="modal-overlay" id="change-pw-modal">
+        <div class="modal">
+            <h3>Change Password</h3>
+            <div class="form-group"><label>Current Password</label><input type="password" id="pw-current" placeholder="Current password"></div>
+            <div class="form-group"><label>New Password</label><input type="password" id="pw-new" placeholder="New password"></div>
+            <div class="form-group"><label>Confirm New Password</label><input type="password" id="pw-confirm" placeholder="Confirm new password"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeChangePwModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitChangePw()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Username Modal -->
+    <div class="modal-overlay" id="change-un-modal">
+        <div class="modal">
+            <h3>Change Username</h3>
+            <div class="form-group"><label>New Username</label><input type="text" id="un-new" placeholder="New username"></div>
+            <div class="form-group"><label>Password (to confirm)</label><input type="password" id="un-password" placeholder="Enter password"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeChangeUnModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitChangeUn()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2FA Modal -->
+    <div class="modal-overlay" id="twofa-modal">
+        <div class="modal">
+            <h3>&#128272; Two-Factor Authentication</h3>
+            <div id="twofa-status"></div>
+            <div id="twofa-setup" style="display:none">
+                <p>Scan this QR code with your authenticator app:</p>
+                <div style="text-align:center;margin:16px 0"><img id="twofa-qr" src="" alt="QR Code" style="max-width:200px;border-radius:8px"></div>
+                <div class="form-group"><label>Enter code from app</label><input type="text" id="twofa-verify-code" placeholder="6-digit code" maxlength="6" pattern="[0-9]{6}"></div>
+            </div>
+            <div id="twofa-disable" style="display:none">
+                <p>Enter your password and current 2FA code to disable:</p>
+                <div class="form-group"><label>Password</label><input type="password" id="twofa-disable-pw" placeholder="Your password"></div>
+                <div class="form-group"><label>2FA Code</label><input type="text" id="twofa-disable-code" placeholder="6-digit code" maxlength="6" pattern="[0-9]{6}"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="close2FAModal()">Cancel</button>
+                <button class="btn btn-primary" id="twofa-action-btn" style="display:none"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customize Modal -->
+    <div class="modal-overlay" id="customize-modal">
+        <div class="modal modal-wide">
+            <div class="modal-header">
+                <h3>&#9881; Customize</h3>
+                <button class="modal-close" onclick="closeCustomizeModal()">&#10005;</button>
+            </div>
+            <div class="customize-section">
+                <h4>Layout Density</h4>
+                <div class="customize-options">
+                    <button class="customize-option" data-group="density" data-value="compact" onclick="setCustomOption('density','compact',this)"><span class="opt-icon">&#9776;</span>Compact</button>
+                    <button class="customize-option" data-group="density" data-value="normal" onclick="setCustomOption('density','normal',this)"><span class="opt-icon">&#9783;</span>Normal</button>
+                    <button class="customize-option" data-group="density" data-value="comfortable" onclick="setCustomOption('density','comfortable',this)"><span class="opt-icon">&#9784;</span>Comfortable</button>
+                </div>
+            </div>
+            <div class="customize-section">
+                <h4>Font Size</h4>
+                <div class="customize-options">
+                    <button class="customize-option" data-group="fontSize" data-value="small" onclick="setCustomOption('fontSize','small',this)"><span class="opt-icon">&#8722;</span>Small</button>
+                    <button class="customize-option" data-group="fontSize" data-value="medium" onclick="setCustomOption('fontSize','medium',this)"><span class="opt-icon">&#8722;</span>Medium</button>
+                    <button class="customize-option" data-group="fontSize" data-value="large" onclick="setCustomOption('fontSize','large',this)"><span class="opt-icon">&#43;</span>Large</button>
+                </div>
+            </div>
+            <div class="customize-section">
+                <h4>Font Family</h4>
+                <div class="customize-options">
+                    <button class="customize-option" data-group="fontFamily" data-value="system" onclick="setCustomOption('fontFamily','system',this)"><span class="opt-icon">&#9654;</span>System</button>
+                    <button class="customize-option" data-group="fontFamily" data-value="serif" onclick="setCustomOption('fontFamily','serif',this)"><span class="opt-icon">&#9998;</span>Serif</button>
+                    <button class="customize-option" data-group="fontFamily" data-value="mono" onclick="setCustomOption('fontFamily','mono',this)"><span class="opt-icon">&#9632;</span>Mono</button>
+                    <button class="customize-option" data-group="fontFamily" data-value="handwriting" onclick="setCustomOption('fontFamily','handwriting',this)"><span class="opt-icon">&#9998;</span>Hand</button>
+                </div>
+            </div>
+            <div class="customize-section">
+                <h4>Card Style</h4>
+                <div class="customize-options">
+                    <button class="customize-option" data-group="cardStyle" data-value="rounded" onclick="setCustomOption('cardStyle','rounded',this)"><span class="opt-icon">&#9711;</span>Rounded</button>
+                    <button class="customize-option" data-group="cardStyle" data-value="sharp" onclick="setCustomOption('cardStyle','sharp',this)"><span class="opt-icon">&#9632;</span>Sharp</button>
+                    <button class="customize-option" data-group="cardStyle" data-value="glass" onclick="setCustomOption('cardStyle','glass',this)"><span class="opt-icon">&#9672;</span>Glass</button>
+                </div>
+            </div>
+            <div class="customize-section">
+                <h4>Accent Color</h4>
+                <div class="customize-options">
+                    <button class="customize-option" data-group="accentColor" data-value="#0060a9" onclick="setCustomOption('accentColor','#0060a9',this)"><span class="palette-swatch" style="background:#0060a9"></span>Blue</button>
+                    <button class="customize-option" data-group="accentColor" data-value="#22c55e" onclick="setCustomOption('accentColor','#22c55e',this)"><span class="palette-swatch" style="background:#22c55e"></span>Green</button>
+                    <button class="customize-option" data-group="accentColor" data-value="#e63946" onclick="setCustomOption('accentColor','#e63946',this)"><span class="palette-swatch" style="background:#e63946"></span>Red</button>
+                    <button class="customize-option" data-group="accentColor" data-value="#f59e0b" onclick="setCustomOption('accentColor','#f59e0b',this)"><span class="palette-swatch" style="background:#f59e0b"></span>Gold</button>
+                    <button class="customize-option" data-group="accentColor" data-value="#7b2cbf" onclick="setCustomOption('accentColor','#7b2cbf',this)"><span class="palette-swatch" style="background:#7b2cbf"></span>Purple</button>
+                    <button class="customize-option" data-group="accentColor" data-value="#ec4899" onclick="setCustomOption('accentColor','#ec4899',this)"><span class="palette-swatch" style="background:#ec4899"></span>Pink</button>
+                    <div class="form-group" style="margin-top:8px;margin-bottom:0;">
+                        <input type="color" id="accent-color-picker" value="#0060a9" onchange="setAccentColor(this.value)" style="width:40px;height:32px;border:none;cursor:pointer;">
+                        <span style="font-size:12px;color:var(--gray-400);margin-left:8px;">Custom</span>
+                    </div>
+                </div>
+            </div>
+            <div class="customize-section">
+                <h4>Effects</h4>
+                <div class="customize-options">
+                    <button class="customize-option toggle-opt" data-group="glowMode" data-value="true" onclick="toggleGlow(this)"><span class="opt-icon">&#10024;</span>Glow</button>
+                    <button class="customize-option toggle-opt" data-group="animatedBg" data-value="true" onclick="toggleAnimatedBg(this)"><span class="opt-icon">&#9730;</span>Animated BG</button>
+                    <button class="customize-option toggle-opt" data-group="swirlBg" data-value="true" onclick="toggleSwirlBg(this)"><span class="opt-icon">&#127752;</span>Colorful Swirl</button>
+                </div>
+            </div>
+            <div class="customize-section">
+                <h4>Stats Layout</h4>
+                <div class="customize-options">
+                    <button class="customize-option" data-group="statsLayout" data-value="grid" onclick="setCustomOption('statsLayout','grid',this)"><span class="opt-icon">&#9638;</span>Grid</button>
+                    <button class="customize-option" data-group="statsLayout" data-value="list" onclick="setCustomOption('statsLayout','list',this)"><span class="opt-icon">&#9776;</span>List</button>
+                </div>
+            </div>
+            <div class="customize-section">
+                <h4>Visible Sections</h4>
+                <div class="customize-options">
+                    <button class="customize-option toggle-opt" data-group="showStats" data-value="true" onclick="toggleSection('showStats',this)"><span class="opt-icon">&#10003;</span>Stats</button>
+                    <button class="customize-option toggle-opt" data-group="showCharts" data-value="true" onclick="toggleSection('showCharts',this)"><span class="opt-icon">&#10003;</span>Charts</button>
+                </div>
+            </div>
+            <div class="customize-section">
+                <h4>Background Color</h4>
+                <div class="bg-color-picker-wrap">
+                    <div class="bg-color-presets">
+                        <button class="bg-preset active" data-bg="#f9fafb" onclick="setBgColor('#f9fafb',this)" style="background:#f9fafb" title="Default"></button>
+                        <button class="bg-preset" data-bg="#f0f8ff" onclick="setBgColor('#f0f8ff',this)" style="background:#f0f8ff" title="Ice Blue"></button>
+                        <button class="bg-preset" data-bg="#fef3c7" onclick="setBgColor('#fef3c7',this)" style="background:#fef3c7" title="Cream"></button>
+                        <button class="bg-preset" data-bg="#dcfce7" onclick="setBgColor('#dcfce7',this)" style="background:#dcfce7" title="Mint"></button>
+                        <button class="bg-preset" data-bg="#ede9fe" onclick="setBgColor('#ede9fe',this)" style="background:#ede9fe" title="Lavender"></button>
+                        <button class="bg-preset" data-bg="#fce7f3" onclick="setBgColor('#fce7f3',this)" style="background:#fce7f3" title="Rose"></button>
+                        <button class="bg-preset" data-bg="#111827" onclick="setBgColor('#111827',this)" style="background:#111827" title="Dark"></button>
+                        <button class="bg-preset" data-bg="#0f172a" onclick="setBgColor('#0f172a',this)" style="background:#0f172a" title="Midnight"></button>
+                    </div>
+                    <div class="bg-custom-row">
+                        <input type="color" id="bg-color-picker" value="#f9fafb" onchange="setBgColor(this.value,null)" title="Pick any color">
+                        <input type="range" id="bg-brightness" min="0" max="100" value="100" oninput="adjustBgBrightness(this.value)" title="Brightness">
+                        <button class="btn btn-sm btn-secondary" onclick="resetBgColor()">Reset</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary btn-full" onclick="closeCustomizeModal()">Done</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

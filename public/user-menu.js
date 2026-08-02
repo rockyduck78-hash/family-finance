@@ -3,8 +3,32 @@ function initUserMenu(username) {
     document.getElementById('user-avatar').textContent = username[0].toUpperCase();
     loadTheme();
     loadCustomization();
+    _injectBackupButton();
     _injectDeleteAccountButton();
     _injectDeleteAccountModal();
+}
+
+function _injectBackupButton() {
+    const dropdown = document.querySelector('.user-dropdown');
+    if (!dropdown || dropdown.querySelector('.backup-btn')) return;
+    const divider = document.createElement('div');
+    divider.className = 'divider';
+    const btn = document.createElement('button');
+    btn.className = 'backup-btn';
+    btn.innerHTML = '&#128190; Download Backup';
+    btn.onclick = function() {
+        document.getElementById('user-menu').classList.remove('open');
+        window.location.href = '/backup';
+    };
+    const dividers = dropdown.querySelectorAll('.divider');
+    const lastDivider = dividers[dividers.length - 1];
+    if (lastDivider) {
+        dropdown.insertBefore(divider, lastDivider);
+        dropdown.insertBefore(btn, lastDivider);
+    } else {
+        dropdown.appendChild(divider);
+        dropdown.appendChild(btn);
+    }
 }
 
 function _injectDeleteAccountButton() {

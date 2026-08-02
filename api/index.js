@@ -1714,6 +1714,7 @@ app.get('/family', (req, res) => res.sendFile(path.join(__dirname, '..', 'public
 app.get('/interbank', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'interbank.html')));
 app.get('/doublons', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'doublons.html')));
 app.get('/forgot-password', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'forgot-password.html')));
+app.get('/backup', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'backup.html')));
 
 // Catch-all for unknown routes
 app.get('*', (req, res) => {
