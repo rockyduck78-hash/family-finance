@@ -153,8 +153,11 @@ const apiKeySchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     createdAt: { type: Date, default: Date.now }
 });
-
 const ApiKey = mongoose.models.ApiKey || mongoose.model('ApiKey', apiKeySchema);
+
+function generateApiKey() {
+    return 'ff_sk_' + crypto.randomBytes(24).toString('hex');
+}
 
 const familyGroupSchema = new mongoose.Schema({
     name: { type: String, required: true },
@@ -1712,6 +1715,45 @@ app.post('/api/user/:username/crossbank-transfer', authLimiter, authMiddleware, 
         });
         await user.save();
         res.json({ success: true });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ===== API Key =====
+app.get('/api/user/:username/api-key', authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const apiKey = await ApiKey.findOne({ username: req.params.username });
+        if (!apiKey) {
+            // Backfill: generate one for existing users without a key
+            const newKey = generateApiKey();
+            await ApiKey.create({ key: newKey, username: req.params.username });
+            return res.json({ key: newKey });
+        }
+        res.json({ key: apiKey.key });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/user/:username/api-key/regenerate', authMiddleware, ownerOnly, async (req, res) => {
+    try {
+        const { password } = req.body;
+        if (!password) return res.status(400).json({ error: 'Password required' });
+
+        const user = await User.findOne({ username: req.params.username });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        let passwordMatch = false;
+        try { passwordMatch = await bcrypt.compare(password, user.password); } catch (e) {}
+        if (!passwordMatch && user.password === password) passwordMatch = true;
+        if (!passwordMatch) return res.status(401).json({ error: 'Incorrect password' });
+
+        const newKey = generateApiKey();
+        await ApiKey.findOneAndUpdate({ username: req.params.username }, { key: newKey }, { upsert: true });
+        res.json({ key: newKey });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Server error' });

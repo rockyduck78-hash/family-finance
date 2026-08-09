@@ -78,6 +78,7 @@
                 <button class="page-tab active" role="tab" aria-selected="true" onclick="switchTab('transfers', this)">&#8644; Transfers</button>
                 <button class="page-tab" role="tab" aria-selected="false" onclick="switchTab('crossbank', this)">&#127974; Zach FSB</button>
                 <button class="page-tab" role="tab" aria-selected="false" onclick="switchTab('family', this)">&#128106; Family</button>
+                <button class="page-tab" role="tab" aria-selected="false" onclick="switchTab('apikey', this)">&#128273; API Key</button>
             </div>
 
             <!-- Tab: Transfers -->
@@ -273,8 +274,49 @@
 
             </div><!-- end tab-family -->
 
+            <!-- Tab: API Key -->
+            <div id="tab-apikey" class="tab-panel">
+                <div class="card">
+                    <div style="padding:20px;">
+                        <h3 style="margin:0 0 8px;">&#128273; Your API Key</h3>
+                        <p style="color:var(--gray-400);font-size:14px;margin:0 0 16px;">Use this key to access the Family Finance API programmatically. Keep it secret.</p>
+
+                        <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;">
+                            <input type="text" id="apikey-display" readonly style="flex:1;font-family:monospace;font-size:14px;padding:10px 12px;background:var(--gray-100);border:1px solid var(--gray-200);border-radius:var(--radius);color:var(--gray-700);" placeholder="Loading...">
+                            <button class="btn btn-sm btn-secondary" onclick="copyApiKey()">&#128203; Copy</button>
+                            <button class="btn btn-sm btn-secondary" onclick="toggleApiKeyVisibility()" id="apikey-toggle-btn">&#128065; Show</button>
+                        </div>
+
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn btn-primary" onclick="showRegenerateModal()">&#128260; Regenerate Key</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top:16px;">
+                    <div style="padding:20px;">
+                        <h3 style="margin:0 0 8px;">&#128221; API Usage</h3>
+                        <p style="color:var(--gray-400);font-size:14px;margin:0 0 12px;">Include your API key in the <code>Authorization</code> header:</p>
+                        <pre style="background:var(--gray-100);padding:12px;border-radius:var(--radius);font-size:13px;overflow-x:auto;margin:0;">Authorization: Bearer YOUR_API_KEY</pre>
+                    </div>
+                </div>
+            </div><!-- end tab-apikey -->
+
             <!-- Inter Bank System moved to /interbank page -->
         </main>
+    </div>
+
+    <!-- Regenerate API Key Modal -->
+    <div class="modal-overlay" id="regen-apikey-modal">
+        <div class="modal">
+            <h3>&#128273; Regenerate API Key</h3>
+            <p style="color:var(--gray-500);font-size:14px;margin:0 0 16px;">Your current key will stop working immediately. Enter your password to confirm.</p>
+            <div class="form-group"><label>Password</label><input type="password" id="regen-apikey-password" placeholder="Your password"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeRegenModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitRegenerateApiKey()">Regenerate</button>
+            </div>
+        </div>
     </div>
 
     <script src="/auth.js"></script>
@@ -422,6 +464,64 @@
             renderTransfers(sentRequestsData || []);
             renderRequests(requestsData || []);
             renderFamilyGroup(familyData);
+            loadApiKey();
+        }
+
+        // ===== API Key =====
+        let apiKeyVisible = false;
+
+        async function loadApiKey() {
+            try {
+                const data = await apiGet('/api/user/' + user + '/api-key');
+                if (data && data.key) {
+                    const display = document.getElementById('apikey-display');
+                    display.value = data.key;
+                    display.dataset.key = data.key;
+                    display.type = 'password';
+                }
+            } catch (e) {}
+        }
+
+        function toggleApiKeyVisibility() {
+            const display = document.getElementById('apikey-display');
+            const btn = document.getElementById('apikey-toggle-btn');
+            apiKeyVisible = !apiKeyVisible;
+            display.type = apiKeyVisible ? 'text' : 'password';
+            btn.innerHTML = apiKeyVisible ? '&#128064; Hide' : '&#128065; Show';
+        }
+
+        function copyApiKey() {
+            const display = document.getElementById('apikey-display');
+            navigator.clipboard.writeText(display.dataset.key || display.value).then(() => {
+                notifySuccess('API key copied to clipboard');
+            }).catch(() => {
+                display.select();
+                document.execCommand('copy');
+                notifySuccess('API key copied to clipboard');
+            });
+        }
+
+        function showRegenerateModal() {
+            document.getElementById('regen-apikey-modal').classList.add('open');
+            document.getElementById('regen-apikey-password').value = '';
+        }
+
+        function closeRegenModal() {
+            document.getElementById('regen-apikey-modal').classList.remove('open');
+        }
+
+        async function submitRegenerateApiKey() {
+            const password = document.getElementById('regen-apikey-password').value;
+            if (!password) return notifyError('Password required');
+            const data = await apiPost('/api/user/' + user + '/api-key/regenerate', { password });
+            if (data.error) return notifyError(data.error);
+            closeRegenModal();
+            document.getElementById('apikey-display').value = data.key;
+            document.getElementById('apikey-display').dataset.key = data.key;
+            document.getElementById('apikey-display').type = 'password';
+            apiKeyVisible = false;
+            document.getElementById('apikey-toggle-btn').innerHTML = '&#128065; Show';
+            notifySuccess('API key regenerated');
         }
 
         function fmt(n) {
