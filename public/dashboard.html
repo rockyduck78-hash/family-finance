@@ -93,20 +93,6 @@
                 </div>
             </div>
 
-            <div class="card" id="apikey-card" style="margin-top:16px;">
-                <div class="card-header">
-                    <span class="card-title">API Key</span>
-                </div>
-                <div style="padding:16px;">
-                    <p style="margin-bottom:12px;color:var(--gray-400);font-size:14px;">Your personal API key for sending money to Bank of Philip and Doublons Bank. Keep it secret!</p>
-                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                        <div id="apikey-display" style="flex:1;min-width:200px;padding:10px 14px;background:var(--gray-800);border-radius:var(--radius);font-family:monospace;font-size:14px;color:var(--gray-300);word-break:break-all;user-select:all;cursor:text;">Loading...</div>
-                        <button class="btn btn-secondary" onclick="toggleApiKeyVisibility()" id="apikey-eye-btn">Show</button>
-                        <button class="btn btn-secondary" onclick="copyApiKey()">Copy</button>
-                        <button class="btn btn-secondary" onclick="regenerateApiKey()" style="color:var(--amber-500);">Regenerate</button>
-                    </div>
-                </div>
-            </div>
         </main>
     </div>
 
@@ -281,65 +267,6 @@
             }
         }
 
-        // API Key Management
-        let currentApiKey = '';
-        let apiKeyVisible = false;
-
-        async function loadApiKey() {
-            try {
-                const data = await apiGet('/api/user/' + user + '/apikey');
-                if (data.apiKey) {
-                    currentApiKey = data.apiKey;
-                    renderApiKey();
-                }
-            } catch (err) {
-                console.error('Failed to load API key:', err);
-            }
-        }
-
-        function renderApiKey() {
-            const el = document.getElementById('apikey-display');
-            if (!el) return;
-            if (apiKeyVisible) {
-                el.textContent = currentApiKey;
-            } else {
-                el.textContent = currentApiKey.substring(0, 8) + '...' + currentApiKey.substring(currentApiKey.length - 4);
-            }
-            document.getElementById('apikey-eye-btn').textContent = apiKeyVisible ? 'Hide' : 'Show';
-        }
-
-        function toggleApiKeyVisibility() {
-            apiKeyVisible = !apiKeyVisible;
-            renderApiKey();
-        }
-
-        function copyApiKey() {
-            navigator.clipboard.writeText(currentApiKey).then(() => {
-                notifySuccess('API key copied to clipboard');
-            }).catch(() => {
-                const el = document.getElementById('apikey-display');
-                const range = document.createRange();
-                range.selectNodeContents(el);
-                window.getSelection().removeAllRanges();
-                window.getSelection().addRange(range);
-                notifySuccess('API key selected — press Ctrl+C to copy');
-            });
-        }
-
-        async function regenerateApiKey() {
-            if (!await showConfirm('Regenerate your API key? The old key will stop working immediately.', { confirmText: 'Regenerate' })) return;
-            try {
-                const data = await apiPost('/api/user/' + user + '/apikey/regenerate', {});
-                if (data.error) throw new Error(data.error);
-                currentApiKey = data.apiKey;
-                renderApiKey();
-                notifySuccess('New API key generated');
-            } catch (err) {
-                notifyError(err.message);
-            }
-        }
-
-        loadApiKey();
         loadData();
     </script>
 
